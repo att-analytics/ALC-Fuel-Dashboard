@@ -1,0 +1,12 @@
+*.xlsx
+*.xls
+*.py
+*.txt
+*.jpg
+*.png
+users.json
+market_prices.json
+ALC_Fuel_Analytics_Dashboard.html
+da_cap_nhat/
+du_lieu_moi/
+__pycache__/

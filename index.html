@@ -202,6 +202,27 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
 .check-empty { padding: 26px; text-align: center; color: var(--good); font-weight: 600; }
 .src-card .kpi-val { font-size: 20px; }
 
+/* CẬP NHẬT DỮ LIỆU */
+.dropzone { display: block; border: 2px dashed var(--line-2); border-radius: 10px; padding: 26px 16px; text-align: center; cursor: pointer; background: #FAFBFD; transition: border-color 0.15s, background 0.15s; }
+.dropzone:hover, .dropzone.drag { border-color: var(--brand); background: var(--brand-50); }
+.dropzone input { display: none; }
+.dz-main { font-weight: 600; color: var(--ink); font-size: 14px; }
+.dz-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.imp-file { border: 1px solid var(--line); border-radius: var(--radius); background: #fff; box-shadow: var(--shadow); margin-bottom: 12px; padding: 14px 16px; }
+.imp-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.imp-name { font-weight: 600; color: var(--ink); word-break: break-all; }
+.imp-stats { display: flex; gap: 18px; flex-wrap: wrap; margin: 10px 0 6px; font-size: 12.5px; color: var(--ink-2); }
+.imp-stats b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.imp-stats b.txt-good { color: var(--good); }
+.imp-stats b.txt-bad { color: var(--bad); }
+.imp-status { font-size: 13px; padding: 9px 12px; border-radius: 8px; margin-top: 8px; }
+.imp-status.ok { background: var(--good-bg); color: #15803D; }
+.imp-status.warn { background: var(--warn-bg); color: #B45309; }
+.imp-status.err { background: var(--bad-bg); color: var(--bad); }
+.imp-status.info { background: var(--brand-50); color: var(--brand-700); }
+.imp-actions { margin-top: 10px; display: flex; gap: 8px; }
+.imp-errors { font-size: 12px; color: var(--bad); margin-top: 6px; max-height: 120px; overflow: auto; }
+
 /* LOGIN OVERLAY */
 #alc-login-overlay { position: fixed; inset: 0; background: linear-gradient(160deg, #0B1B2B 0%, #102F4A 100%); display: flex; align-items: center; justify-content: center; z-index: 999999; transition: opacity 0.35s ease, visibility 0.35s ease; padding: 16px; }
 #alc-login-overlay.login-fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
@@ -294,6 +315,7 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
             </div>
             <div class="single-nav-group" id="nav-admin-item" style="display:none;">
                 <div class="acc-header" style="cursor:default;"><span>Hệ thống</span></div>
+                <div class="single-nav-header" id="nav-import-label" style="display:none;" onclick="switchTab('data_import', this)">Cập nhật dữ liệu</div>
                 <div class="single-nav-header" id="nav-check-label" onclick="switchTab('data_check', this)">Kiểm tra dữ liệu <span class="nav-count" id="navCheckCount"></span></div>
                 <div class="single-nav-header" id="nav-admin-label" onclick="switchTab('user_admin', this)">Quản lý tài khoản</div>
             </div>
@@ -531,6 +553,34 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
         </div>
 
         <!-- KHỐI QUẢN TRỊ TÀI KHOẢN -->
+        <div id="import-content-wrapper" style="display:none;">
+            <div class="card">
+                <div class="section-heading">Tải file xuất từ hệ thống</div>
+                <div class="chart-note">Hỗ trợ file gốc, chưa chỉnh sửa: <b>Báo cáo tiêu hao nhiên liệu</b> (GPS) và <b>Lịch sử giao dịch – TransactionHistoryTimeLine</b> (Dibee). Có thể chọn nhiều file cùng lúc; file xuất chồng ngày không sao, dòng đã có sẽ tự bỏ qua.</div>
+                <label class="dropzone" id="importDrop">
+                    <input type="file" id="importInput" accept=".xlsx,.xls,.csv" multiple onchange="onImportFiles(this.files); this.value='';">
+                    <div class="dz-main">Kéo thả file vào đây hoặc bấm để chọn file</div>
+                    <div class="dz-sub">.xlsx · .xls · .csv — file được đọc ngay trên trình duyệt, chỉ gửi các dòng dữ liệu đã chuẩn hoá lên Google Sheet</div>
+                </label>
+            </div>
+            <div id="importFileList"></div>
+            <div class="card">
+                <div class="card-head">
+                    <div>
+                        <div class="section-heading">Lịch sử nhập dữ liệu</div>
+                        <div class="chart-note" style="margin-bottom:0;">Sau khi ghi xong, chạy <b>build_dashboard.py</b> để số liệu trên dashboard được tính lại.</div>
+                    </div>
+                    <button class="tool-btn" onclick="undoLastImport()">Hoàn tác lần nhập gần nhất</button>
+                </div>
+                <div class="table-scroll-box" style="max-height:340px;">
+                    <table>
+                        <thead><tr><th>Thời điểm</th><th>Người nhập</th><th>Loại</th><th>Tên file</th><th class="num">Dòng đã ghi</th><th class="num">Trùng (bỏ qua)</th><th>Khoảng ngày</th><th>Trạng thái</th></tr></thead>
+                        <tbody id="importLogBody"><tr><td colspan="8" class="txt-muted" style="text-align:center; padding:16px;">Chưa tải lịch sử.</td></tr></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <div id="check-content-wrapper" style="display:none;">
             <div class="kpi-grid" id="checkSourceGrid"></div>
             <div class="card">
@@ -585,6 +635,173 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
     </div>
 
     <script>
+// =====================================================================
+//  ĐỌC & CHUẨN HOÁ FILE XUẤT TỪ HỆ THỐNG (chạy trên trình duyệt, không gửi file gốc đi đâu)
+//  - GPS:   "Báo cáo tiêu hao nhiên liệu"      -> 25 cột, khớp cột F → AD của sheet Data GPS
+//  - Dibee: "TransactionHistoryTimeLine"       -> 13 cột, khớp cột F → R  của sheet Data Dibee
+//  Ngày gửi lên dạng "D:yyyy-mm-dd", ngày giờ dạng "DT:yyyy-mm-dd hh:mm" để Apps Script tạo đúng kiểu ngày.
+// =====================================================================
+
+const IMPORT_KINDS = {
+    gps: { label: 'GPS – Báo cáo tiêu hao nhiên liệu', sheet: 'Data GPS', cols: 25 },
+    dibee: { label: 'Dibee – Lịch sử giao dịch', sheet: 'Data Dibee', cols: 13 }
+};
+
+const _norm = v => String(v == null ? '' : v).normalize('NFC').replace(/\s+/g, ' ').trim();
+const _normKey = v => _norm(v).toLowerCase();
+const _pad = n => String(n).padStart(2, '0');
+
+/** Số: nhận số thật hoặc chuỗi "1.234,5" / "1234.5" / "" -> số hoặc "" (ô trống). */
+function impNum(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (typeof v === 'number') return isFinite(v) ? v : '';
+    let s = _norm(v).replace(/\s/g, '');
+    if (!s) return '';
+    if (/^-?\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '').replace(',', '.');   // 1.234,5
+    else s = s.replace(/,(?=\d{3}\b)/g, '').replace(',', '.');                              // 1,234.5 hoặc 12,5
+    const n = Number(s);
+    return isFinite(n) ? n : '';
+}
+
+/** Ngày Excel dạng số (serial) -> {y,m,d,h,mi}. */
+function _fromSerial(n) {
+    const ms = Math.round((n - 25569) * 86400000);
+    const d = new Date(ms);
+    return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate(), h: d.getUTCHours(), mi: d.getUTCMinutes() };
+}
+
+/** "05/11/2026" | "05/11/2026 23:12" | "2026-11-05" | số serial -> {y,m,d,h,mi} hoặc null. */
+function impParseDate(v) {
+    if (v === null || v === undefined || v === '') return null;
+    if (typeof v === 'number') return v > 20000 && v < 80000 ? _fromSerial(v) : null;
+    if (v instanceof Date) return { y: v.getFullYear(), m: v.getMonth() + 1, d: v.getDate(), h: v.getHours(), mi: v.getMinutes() };
+    const s = _norm(v);
+    let m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})(?:\s+(\d{1,2}):(\d{2})(?::\d{2})?)?$/);
+    if (m) return _validDate({ y: +m[3], m: +m[2], d: +m[1], h: +(m[4] || 0), mi: +(m[5] || 0) });
+    m = s.match(/^(\d{4})[\/\-.](\d{1,2})[\/\-.](\d{1,2})(?:[ T](\d{1,2}):(\d{2})(?::\d{2})?)?$/);
+    if (m) return _validDate({ y: +m[1], m: +m[2], d: +m[3], h: +(m[4] || 0), mi: +(m[5] || 0) });
+    return null;
+}
+function _validDate(o) {
+    const t = new Date(o.y, o.m - 1, o.d);
+    return (t.getFullYear() === o.y && t.getMonth() === o.m - 1 && t.getDate() === o.d && o.h < 24 && o.mi < 60) ? o : null;
+}
+const impDateToken = o => `D:${o.y}-${_pad(o.m)}-${_pad(o.d)}`;
+const impDateTimeToken = o => `DT:${o.y}-${_pad(o.m)}-${_pad(o.d)} ${_pad(o.h)}:${_pad(o.mi)}`;
+
+/** "07:04" -> 0,2944 ngày (kiểu thời lượng của Google Sheet). Số giữ nguyên. */
+function impDuration(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (typeof v === 'number') return v;
+    const m = _norm(v).match(/^(\d{1,3}):(\d{2})(?::(\d{2}))?$/);
+    return m ? (+m[1] * 3600 + +m[2] * 60 + +(m[3] || 0)) / 86400 : '';
+}
+
+/** "99.34 %" -> 0,9934 ; "0 %" -> 0. */
+function impPercent(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (typeof v === 'number') return v;
+    const n = impNum(_norm(v).replace('%', ''));
+    return n === '' ? '' : n / 100;
+}
+
+const impPlate = v => _norm(v).toUpperCase();
+const _isPlate = p => /^\d{2}[A-Z]{1,2}\d?-?\s?\d{3}\.?\d{2}$/.test(p.replace(/\s/g, '')) || /^\d{2}[A-Z].{4,}$/.test(p);
+
+/** Nhận dạng loại file từ nội dung 15 dòng đầu. */
+function detectImportKind(aoa) {
+    const text = aoa.slice(0, 15).map(r => (r || []).map(_normKey).join(' | ')).join('\n');
+    if (text.includes('báo cáo tiêu hao nhiên liệu') || (text.includes('dừng xe không tắt máy') && text.includes('số lít đầu ngày'))) return 'gps';
+    if (text.includes('lịch sử giao dịch') || text.includes('thời gian giao dịch')) return 'dibee';
+    return null;
+}
+
+function _summary(kind, rows, errors, dates, extra) {
+    const plates = new Set(rows.map(r => r[1]));
+    const sorted = dates.slice().sort();
+    const fmt = s => s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : '';
+    return Object.assign({ kind, rows, errors, plates: plates.size, from: fmt(sorted[0]), to: fmt(sorted[sorted.length - 1]) }, extra || {});
+}
+
+// ---------------- GPS ----------------
+const GPS_EXPECT = { 1: 'ngày', 2: 'biển số xe', 3: 'thời gian bắt đầu', 11: 'tổng', 16: 'dừng xe không tắt máy', 19: 'xe đang chạy', 24: 'định mức quy định' };
+
+function parseGpsReport(aoa) {
+    const h = aoa.findIndex(r => r && _normKey(r[0]) === 'stt' && _normKey(r[1]) === 'ngày');
+    if (h < 0) throw new Error('Không tìm thấy dòng tiêu đề "STT | Ngày | Biển số xe" của báo cáo GPS.');
+    const hdr = aoa[h].map(_normKey);
+    const wrong = Object.entries(GPS_EXPECT).filter(([i, name]) => !String(hdr[i] || '').startsWith(name));
+    if (wrong.length) throw new Error('Cột của báo cáo GPS khác mẫu: ' + wrong.map(([i, n]) => `cột ${+i + 1} phải là "${n}"`).join('; '));
+
+    const rows = [], errors = [], dates = [];
+    for (let i = h + 2; i < aoa.length; i++) {
+        const r = aoa[i] || [];
+        if (typeof r[0] !== 'number' && !/^\d+$/.test(_norm(r[0]))) continue;   // dòng tên xe / "Tổng theo xe" / "Tổng"
+        const d = impParseDate(r[1]);
+        const bs = impPlate(r[2]);
+        if (!d || !bs) { errors.push(`Dòng ${i + 1}: ${!d ? 'ngày không hợp lệ "' + _norm(r[1]) + '"' : 'thiếu biển số'}`); continue; }
+        const out = [
+            impDateToken(d), bs, impDuration(r[3]), impDuration(r[4]),
+            impNum(r[5]), impNum(r[6]), impNum(r[7]), impNum(r[8]), impNum(r[9]), impNum(r[10]),
+            impNum(r[11]), impNum(r[12]), impNum(r[13]), impDuration(r[14]), impNum(r[15]),
+            impNum(r[16]), impDuration(r[17]), impNum(r[18]),
+            impNum(r[19]), impNum(r[20]), impNum(r[21]), impDuration(r[22]), impNum(r[23]),
+            impNum(r[24]), impPercent(r[25])
+        ];
+        rows.push(out);
+        dates.push(`${d.y}-${_pad(d.m)}-${_pad(d.d)}`);
+    }
+    const totalRow = aoa.find(r => r && _normKey(r[0]) === 'tổng');
+    const check = totalRow ? { totalKm: impNum(totalRow[12]), sumKm: rows.reduce((a, r) => a + (+r[11] || 0), 0) } : null;
+    return _summary('gps', rows, errors, dates, { check });
+}
+
+// ---------------- DIBEE ----------------
+const DIBEE_COLS = ['thời gian giao dịch', 'biển số xe', 'người sử dụng', 'số điện thoại', 'sản phẩm', 'đơn giá', 'số lít',
+    'số tiền', 'số odo', 'cự ly đo bằng odo', 'cự ly đo bằng gps', 'trạm xăng', 'công ty'];
+
+function parseDibeeExport(aoa) {
+    const h = aoa.findIndex(r => r && r.some(c => _normKey(c) === 'thời gian giao dịch'));
+    if (h < 0) throw new Error('Không tìm thấy dòng tiêu đề có cột "Thời gian giao dịch" của file Dibee.');
+    const hdr = aoa[h].map(_normKey);
+    const idx = DIBEE_COLS.map(name => hdr.indexOf(name));
+    const missing = DIBEE_COLS.filter((n, i) => idx[i] < 0 && i < 8);
+    if (missing.length) throw new Error('File Dibee thiếu cột: ' + missing.join(', '));
+    const get = (r, k) => idx[k] >= 0 ? r[idx[k]] : null;
+
+    const rows = [], errors = [], dates = [];
+    let sumLit = 0;
+    for (let i = h + 1; i < aoa.length; i++) {
+        const r = aoa[i] || [];
+        const rawT = get(r, 0), rawBs = get(r, 1);
+        if ((rawT === null || rawT === '') && (rawBs === null || rawBs === '')) continue;   // dòng tổng / trống
+        const d = impParseDate(rawT);
+        const bs = impPlate(rawBs);
+        if (!d || !bs) { errors.push(`Dòng ${i + 1}: ${!d ? 'thời gian không hợp lệ "' + _norm(rawT) + '"' : 'thiếu biển số'}`); continue; }
+        const phone = _norm(get(r, 3));
+        const out = [
+            impDateTimeToken(d), bs, _norm(get(r, 2)), phone && /^\d{9}$/.test(phone) ? '0' + phone : phone, _norm(get(r, 4)),
+            impNum(get(r, 5)), impNum(get(r, 6)), impNum(get(r, 7)), impNum(get(r, 8)), impNum(get(r, 9)), impNum(get(r, 10)),
+            _norm(get(r, 11)), _norm(get(r, 12))
+        ];
+        sumLit += +out[6] || 0;
+        rows.push(out);
+        dates.push(`${d.y}-${_pad(d.m)}-${_pad(d.d)}`);
+    }
+    const totalRow = aoa.slice(h + 1).find(r => r && r.some(c => _normKey(c) === 'tổng'));
+    const check = totalRow ? { totalLit: impNum(totalRow[idx[6]]), sumLit } : null;
+    return _summary('dibee', rows, errors, dates, { check });
+}
+
+function parseImportAoa(aoa) {
+    const kind = detectImportKind(aoa);
+    if (kind === 'gps') return parseGpsReport(aoa);
+    if (kind === 'dibee') return parseDibeeExport(aoa);
+    throw new Error('Không nhận ra loại file. Chỉ hỗ trợ "Báo cáo tiêu hao nhiên liệu" (GPS) và "Lịch sử giao dịch" (Dibee).');
+}
+
+if (typeof module !== 'undefined') module.exports = { parseImportAoa, detectImportKind, impNum, impParseDate, impDuration, impPercent };
+
 const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyFr6q3klsGiXSnUIgwR7N9d9imTek8RKVm4iq3pc63WqFURo9E7lhLgY574fAHV6QhCQ/exec";
 const OFFLINE_INITIAL_PAYLOAD = null;
 
@@ -600,6 +817,7 @@ const TAB_META = {
     week_overview: ["Nhiên liệu · Đội 1", "Tổng quan theo tuần", "Quãng đường, tiêu thụ và suất tiêu hao nhiên liệu theo tuần."],
     reconcile: ["Nhiên liệu · Đội 1", "Đối soát đổ dầu", "Đối chiếu lượng dầu thanh toán qua Dibee với lượng dầu cảm biến GPS ghi nhận."],
     norm: ["Nhiên liệu · Đội 1", "Định mức & hao phí", "Lượng dầu vượt định mức tính theo từng ngày (chỉ phần trên ĐM + 2 L/100km, đã bù kẹt xe) và hao phí do dừng nổ máy."],
+    data_import: ["Hệ thống", "Cập nhật dữ liệu", "Tải file xuất từ hệ thống GPS / Dibee; trang tự chuẩn hoá định dạng và ghi vào Google Sheet."],
     data_check: ["Hệ thống", "Kiểm tra dữ liệu", "Các vấn đề phát hiện khi đọc Google Sheet ở lần cập nhật gần nhất: dữ liệu thiếu, biển số lạ, số liệu bất thường, nguồn chậm cập nhật."],
     user_admin: ["Hệ thống", "Quản lý tài khoản", "Tạo, xoá, đổi mật khẩu và phân quyền tài khoản. Mọi thao tác được kiểm tra quyền trên máy chủ."]
 };
@@ -870,6 +1088,7 @@ function applyUserPermissions(user) {
     const isAdmin = user.role === "Admin";
     document.getElementById("nav-admin-item").style.display = "block";
     document.getElementById("nav-admin-label").innerText = isAdmin ? "Quản lý tài khoản" : "Đổi mật khẩu";
+    document.getElementById("nav-import-label").style.display = isAdmin && !OFFLINE_INITIAL_PAYLOAD ? "block" : "none";
     renderUserTable();
 }
 
@@ -1032,6 +1251,134 @@ function applyKpiHeaderLabels(mode) {
     });
 }
 
+// ================= TRANG CẬP NHẬT DỮ LIỆU (nhập file xuất GPS / Dibee) =================
+const SHEETJS_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+let IMPORT_FILES = [], _sheetJsPromise = null;
+
+function loadSheetJs() {
+    if (window.XLSX) return Promise.resolve();
+    if (!_sheetJsPromise) {
+        _sheetJsPromise = new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = SHEETJS_URL;
+            s.onload = () => resolve();
+            s.onerror = () => { _sheetJsPromise = null; reject(new Error('Không tải được thư viện đọc Excel (kiểm tra kết nối mạng).')); };
+            document.head.appendChild(s);
+        });
+    }
+    return _sheetJsPromise;
+}
+
+async function readFileAoa(file) {
+    await loadSheetJs();
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    return XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
+}
+
+async function onImportFiles(fileList) {
+    const files = Array.from(fileList || []);
+    for (const file of files) {
+        const item = { name: file.name, state: 'reading', parsed: null, result: null, message: 'Đang đọc file…' };
+        IMPORT_FILES.unshift(item);
+        renderImportFiles();
+        try {
+            item.parsed = parseImportAoa(await readFileAoa(file));
+            if (!item.parsed.rows.length) throw new Error('File không có dòng dữ liệu hợp lệ.');
+            item.state = 'checking'; item.message = 'Đang đối chiếu với Google Sheet…';
+            renderImportFiles();
+            const res = await callApi('import_data', { kind: item.parsed.kind, rows: item.parsed.rows, fileName: file.name, dryRun: true });
+            item.result = res;
+            item.state = res && res.ok ? (res.added > 0 ? 'ready' : 'nothing') : 'error';
+            item.message = res && res.ok ? '' : ((res && res.message) || 'Lỗi khi đối chiếu.');
+        } catch (e) {
+            item.state = 'error'; item.message = e.message;
+        }
+        renderImportFiles();
+    }
+}
+
+async function commitImport(idx) {
+    const item = IMPORT_FILES[idx];
+    if (!item || item.state !== 'ready') return;
+    item.state = 'writing'; item.message = 'Đang ghi vào Google Sheet…';
+    renderImportFiles();
+    try {
+        const res = await callApi('import_data', { kind: item.parsed.kind, rows: item.parsed.rows, fileName: item.name, dryRun: false });
+        item.result = res;
+        item.state = res && res.ok ? 'done' : 'error';
+        item.message = (res && res.message) || '';
+    } catch (e) {
+        item.state = 'error'; item.message = e.message;
+    }
+    renderImportFiles();
+    loadImportLog();
+}
+
+function removeImportFile(idx) {
+    IMPORT_FILES.splice(idx, 1);
+    renderImportFiles();
+}
+
+function renderImportFiles() {
+    const box = document.getElementById('importFileList');
+    if (!box) return;
+    box.innerHTML = IMPORT_FILES.map((it, idx) => {
+        const p = it.parsed, r = it.result;
+        const kindLabel = p ? IMPORT_KINDS[p.kind].label : '';
+        let stats = '', status = '', actions = '';
+        if (p) {
+            const chk = p.check;
+            const chkOk = chk ? (p.kind === 'gps' ? Math.abs(chk.totalKm - chk.sumKm) < 1 : Math.abs(chk.totalLit - chk.sumLit) < 1) : null;
+            stats = `<div class="imp-stats"><span>Khoảng ngày: <b>${escapeHtml(p.from)} → ${escapeHtml(p.to)}</b></span><span>Dòng hợp lệ: <b>${formatNum(p.rows.length)}</b></span><span>Số xe: <b>${formatNum(p.plates)}</b></span>`
+                + (chk ? `<span>Đối chiếu dòng "Tổng" của file: <b class="${chkOk ? 'txt-good' : 'txt-bad'}">${chkOk ? 'khớp' : 'lệch'}</b></span>` : '')
+                + (p.errors.length ? `<span class="txt-bad">Dòng lỗi: <b>${p.errors.length}</b></span>` : '') + `</div>`
+                + (p.errors.length ? `<div class="imp-errors">${p.errors.slice(0, 50).map(escapeHtml).join('<br>')}</div>` : '');
+        }
+        if (it.state === 'reading' || it.state === 'checking' || it.state === 'writing') status = `<div class="imp-status info">${escapeHtml(it.message)}</div>`;
+        else if (it.state === 'error') status = `<div class="imp-status err">${escapeHtml(it.message)}</div>`;
+        else if (r) {
+            const unk = (r.unknownPlates || []).length ? ` Biển số chưa có trong Data box: ${r.unknownPlates.slice(0, 8).map(escapeHtml).join(', ')}${r.unknownPlates.length > 8 ? '…' : ''}.` : '';
+            if (it.state === 'ready') {
+                status = `<div class="imp-status ${unk ? 'warn' : 'info'}"><b>${formatNum(r.added)}</b> dòng mới sẽ được ghi vào '${IMPORT_KINDS[p.kind].sheet}' (từ dòng ${formatNum(r.startRow)})${r.duplicates ? ` · <b>${formatNum(r.duplicates)}</b> dòng đã có, sẽ bỏ qua` : ''}.${unk}</div>`;
+                actions = `<div class="imp-actions"><button class="alc-btn-primary" onclick="commitImport(${idx})">Ghi ${formatNum(r.added)} dòng vào Google Sheet</button><button class="tool-btn" onclick="removeImportFile(${idx})">Bỏ file này</button></div>`;
+            } else if (it.state === 'nothing') status = `<div class="imp-status ok">Tất cả ${formatNum(r.duplicates)} dòng đã có trong sheet, không cần ghi thêm.</div>`;
+            else if (it.state === 'done') status = `<div class="imp-status ok">${escapeHtml(r.message || 'Đã ghi.')} Chạy build_dashboard.py để cập nhật dashboard.</div>`;
+        }
+        return `<div class="imp-file"><div class="imp-head"><span class="imp-name">${escapeHtml(it.name)}</span>${kindLabel ? `<span class="badge bg-blue">${escapeHtml(kindLabel)}</span>` : ''}</div>${stats}${status}${actions}</div>`;
+    }).join('');
+}
+
+async function loadImportLog() {
+    const body = document.getElementById('importLogBody');
+    try {
+        const res = await callApi('import_log');
+        if (!res?.ok) { body.innerHTML = `<tr><td colspan="8" class="txt-bad" style="padding:12px;">${escapeHtml(res?.message || 'Không tải được lịch sử.')}</td></tr>`; return; }
+        body.innerHTML = res.log.length ? res.log.map(l => `<tr><td style="white-space:nowrap;">${escapeHtml(l.at)}</td><td>${escapeHtml(l.by)}</td><td>${escapeHtml(l.kind)}</td><td>${escapeHtml(l.file)}</td><td class="num">${formatNum(l.added)}</td><td class="num txt-muted">${formatNum(l.dup)}</td><td style="white-space:nowrap;">${escapeHtml(l.from)} → ${escapeHtml(l.to)}</td><td class="${String(l.status).startsWith('Đã ghi') ? 'txt-good' : 'txt-muted'}">${escapeHtml(l.status)}</td></tr>`).join('')
+            : '<tr><td colspan="8" class="txt-muted" style="text-align:center; padding:16px;">Chưa có lần nhập nào.</td></tr>';
+    } catch (e) {
+        body.innerHTML = `<tr><td colspan="8" class="txt-bad" style="padding:12px;">Lỗi kết nối: ${escapeHtml(e.message)}</td></tr>`;
+    }
+}
+
+async function undoLastImport() {
+    if (!confirm('Xoá toàn bộ các dòng của LẦN NHẬP GẦN NHẤT khỏi Google Sheet?')) return;
+    const res = await callApi('import_undo_last');
+    alert(res?.message || (res?.ok ? 'Đã hoàn tác.' : 'Không hoàn tác được.'));
+    loadImportLog();
+}
+
+(function initImportDrop() {
+    const bind = () => {
+        const dz = document.getElementById('importDrop');
+        if (!dz) return;
+        ['dragenter', 'dragover'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add('drag'); }));
+        ['dragleave', 'drop'].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove('drag'); }));
+        dz.addEventListener('drop', e => onImportFiles(e.dataTransfer.files));
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bind); else bind();
+})();
+
 // ================= TRANG KIỂM TRA DỮ LIỆU =================
 const CHECK_LEVEL_LABEL = { loi: 'Lỗi', canh_bao: 'Cảnh báo', thong_tin: 'Thông tin' };
 
@@ -1091,6 +1438,14 @@ function switchTab(tabName, el) {
     document.getElementById('pageDesc').innerText = desc;
 
     document.getElementById('check-content-wrapper').style.display = tabName === 'data_check' ? 'block' : 'none';
+    document.getElementById('import-content-wrapper').style.display = tabName === 'data_import' ? 'block' : 'none';
+    if (tabName === 'data_import') {
+        document.getElementById('report-content-wrapper').style.display = 'none';
+        document.getElementById('admin-content-wrapper').style.display = 'none';
+        renderImportFiles();
+        loadImportLog();
+        return;
+    }
     if (tabName === 'data_check') {
         document.getElementById('report-content-wrapper').style.display = 'none';
         document.getElementById('admin-content-wrapper').style.display = 'none';

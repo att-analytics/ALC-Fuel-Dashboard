@@ -176,6 +176,9 @@
         .tool-btn { background: #fff; color: var(--ink-2); border: 1px solid var(--line-2); padding: 6px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; cursor: pointer; }
         .tool-input { padding: 6px 10px; border: 1px solid var(--line-2); border-radius: 6px; font-size: 12.5px; outline: none; color: var(--ink); background: #fff; }
 
+        #account-msg.msg-ok { background: var(--good-bg); color: #15803D; border-color: #BBF7D0; font-weight: 600; padding: 12px 16px; }
+        #account-msg.msg-err { background: var(--bad-bg); color: var(--bad); border-color: #FECACA; font-weight: 600; padding: 12px 16px; }
+
         /* LOGIN OVERLAY */
         #alc-login-overlay { position: fixed; inset: 0; background: linear-gradient(160deg, #0B1B2B 0%, #102F4A 100%); display: flex; align-items: center; justify-content: center; z-index: 999999; transition: opacity 0.35s ease, visibility 0.35s ease; padding: 16px; }
         #alc-login-overlay.login-fade-out { opacity: 0; visibility: hidden; pointer-events: none; }
@@ -267,7 +270,7 @@
             </div>
             <div class="single-nav-group" id="nav-admin-item" style="display:none;">
                 <div class="acc-header" style="cursor:default;"><span>Hệ thống</span></div>
-                <div class="single-nav-header" onclick="switchTab('user_admin', this)">Quản lý tài khoản</div>
+                <div class="single-nav-header" id="nav-admin-label" onclick="switchTab('user_admin', this)">Quản lý tài khoản</div>
             </div>
         </div>
         <div class="sidebar-footer">
@@ -511,11 +514,13 @@
 
         <!-- KHỐI QUẢN TRỊ TÀI KHOẢN -->
         <div id="admin-content-wrapper" style="display:none;">
-            <div class="card alc-user-form">
-                <div class="section-heading" style="margin-bottom:12px;">Tạo tài khoản mới</div>
+            <div id="account-msg" class="card" style="display:none;"></div>
+            <div class="card alc-user-form" id="adminCreateCard">
+                <div class="section-heading" style="margin-bottom:4px;">Tạo tài khoản mới</div>
+                <div class="chart-note">ID gồm chữ không dấu, số, dấu . _ - (3–32 ký tự). Mật khẩu tối thiểu 8 ký tự, được mã hoá trên máy chủ.</div>
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:12px; align-items:end;">
                     <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Tài khoản (ID) *</label><input id="new-user-id" type="text" placeholder="Nhập ID mới"></div>
-                    <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Mật khẩu *</label><input id="new-user-pw" type="text" placeholder="Nhập mật khẩu"></div>
+                    <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Mật khẩu *</label><input id="new-user-pw" type="password" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password"></div>
                     <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Họ tên / bộ phận</label><input id="new-user-name" type="text" placeholder="Nhập tên hoặc bộ phận"></div>
                     <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Quyền hạn</label><select id="new-user-role"><option value="Viewer">Người xem (Viewer)</option><option value="Admin">Quản trị viên (Admin)</option></select></div>
                     <button class="alc-btn-primary" onclick="addAlcUser()">Tạo tài khoản</button>
@@ -524,17 +529,17 @@
             <div id="change-pw-card" class="card alc-user-form" style="display:none; box-shadow: inset 3px 0 0 #0AA2E8;">
                 <div class="section-heading" style="margin-bottom:12px;">Đổi mật khẩu: <span id="change-pw-target-id" style="color:#0B6FA4;"></span></div>
                 <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap:12px; align-items:end;">
-                    <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Mật khẩu mới *</label><input id="change-pw-new1" type="password"></div>
-                    <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Xác nhận mật khẩu *</label><input id="change-pw-new2" type="password"></div>
+                    <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Mật khẩu mới *</label><input id="change-pw-new1" type="password" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password"></div>
+                    <div><label style="font-size:11px; font-weight:600; color:#64748B; display:block; margin-bottom:4px;">Xác nhận mật khẩu *</label><input id="change-pw-new2" type="password" autocomplete="new-password"></div>
                     <button class="alc-btn-primary" onclick="confirmChangeAlcPassword()">Lưu</button>
                     <button class="alc-btn-primary" style="background:#64748B;" onclick="closeChangePasswordBox()">Hủy</button>
                 </div>
             </div>
-            <div class="card">
+            <div class="card" id="adminListCard">
                 <div class="section-heading" style="margin-bottom:12px;">Danh sách tài khoản</div>
                 <div class="table-scroll-box">
                     <table>
-                        <thead><tr><th>STT</th><th>Tài khoản (ID)</th><th>Mật khẩu</th><th>Họ tên / bộ phận</th><th>Quyền hạn</th><th class="num">Thao tác</th></tr></thead>
+                        <thead><tr><th>#</th><th>Tài khoản (ID)</th><th>Họ tên / bộ phận</th><th>Quyền hạn</th><th class="num">Thao tác</th></tr></thead>
                         <tbody id="alc-user-table-body"></tbody>
                     </table>
                 </div>
@@ -557,8 +562,8 @@
             year_overview: ["Nhiên liệu · Đội 1", "Tổng quan theo tháng", "Quãng đường, tiêu thụ và suất tiêu hao nhiên liệu theo kỳ lương."],
             week_overview: ["Nhiên liệu · Đội 1", "Tổng quan theo tuần", "Quãng đường, tiêu thụ và suất tiêu hao nhiên liệu theo tuần."],
             reconcile: ["Nhiên liệu · Đội 1", "Đối soát đổ dầu", "Đối chiếu lượng dầu thanh toán qua Dibee với lượng dầu cảm biến GPS ghi nhận."],
-            norm: ["Nhiên liệu · Đội 1", "Định mức & hao phí", "Lượng dầu vượt định mức (sau dung sai 2 L/100km) và hao phí do dừng nổ máy."],
-            user_admin: ["Hệ thống", "Quản lý tài khoản", "Tạo, đổi mật khẩu và phân quyền tài khoản truy cập."]
+            norm: ["Nhiên liệu · Đội 1", "Định mức & hao phí", "Lượng dầu vượt định mức tính theo từng ngày (chỉ phần trên ĐM + 2 L/100km, đã bù kẹt xe) và hao phí do dừng nổ máy."],
+            user_admin: ["Hệ thống", "Quản lý tài khoản", "Tạo, xoá, đổi mật khẩu và phân quyền tài khoản. Mọi thao tác được kiểm tra quyền trên máy chủ."]
         };
 
         const KPI_LABELS = {
@@ -580,7 +585,7 @@
         let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [];
         let CURRENT_FILTERED_LEADER_ORDERS = [], CURRENT_STD_TABLE_DATA = [], CURRENT_STD_IS_WEEK = false;
         let TEAM1_VEHICLES = [], ALL_VEHICLES = [], VEH_TEAM_MAP = {}, MAX_DATE_GPS = "N/A";
-        let CLOUD_ACCOUNTS = [{ id: "ATT2026", pwHash: "d85bddaabd06397fd0656a7670afc6f71fcda463560018026d49278d89c466e2", name: "Quản trị viên Hệ thống (ALC)", role: "Admin" }];
+        let CLOUD_ACCOUNTS = [], CURRENT_TOKEN = "";
         let CURRENT_SESSION_AUTH = null, CURRENT_TAB = 'year_overview', TARGET_CHANGE_PW_ID = "";
 
         // TRẠNG THÁI SORT & LỌC THEO TỪNG CỘT CỦA 2 BẢNG CHI TIẾT
@@ -674,16 +679,6 @@
             }, 340);
         }
 
-        async function sha256Hash(str) {
-            if (window.crypto && window.crypto.subtle) {
-                const buf = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(str));
-                return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
-            }
-            let h = 0;
-            for (let i = 0; i < str.length; i++) h = Math.imul(31, h) + str.charCodeAt(i) | 0;
-            return String(h);
-        }
-
         function triggerPageAnimation() {
             const mainEl = document.getElementById('main-container');
             mainEl.classList.remove('page-animate');
@@ -738,18 +733,47 @@
             renderAll();
         }
 
-        async function authenticateAndFetchFromCloud(userId, pwHash) {
+        // ================= ĐĂNG NHẬP & PHIÊN (mã phiên do Apps Script cấp, không lưu mật khẩu/mã băm) =================
+        const SESSION_KEY = "alc_session_token";
+        const getStoredToken = () => { try { return sessionStorage.getItem(SESSION_KEY) || localStorage.getItem(SESSION_KEY) || ""; } catch (e) { return ""; } };
+        const storeToken = (token, keep) => {
+            try {
+                sessionStorage.setItem(SESSION_KEY, token);
+                if (keep) localStorage.setItem(SESSION_KEY, token); else localStorage.removeItem(SESSION_KEY);
+            } catch (e) {}
+        };
+        const clearToken = () => { try { sessionStorage.removeItem(SESSION_KEY); localStorage.removeItem(SESSION_KEY); } catch (e) {} };
+
+        async function callApi(action, data) {
             const res = await fetch(GAS_API_URL, {
                 method: "POST",
                 headers: { "Content-Type": "text/plain;charset=utf-8" },
-                body: JSON.stringify({ action: "login_and_fetch", id: userId, pwHash })
+                body: JSON.stringify(Object.assign({ action, token: CURRENT_TOKEN }, data || {}))
             });
-            return await res.json();
+            const json = await res.json();
+            if (json && json.expired) { clearToken(); showLoginOverlay("Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại."); }
+            return json;
+        }
+
+        function showLoginOverlay(msg) {
+            const overlay = document.getElementById("alc-login-overlay");
+            overlay.classList.remove("login-fade-out");
+            overlay.style.display = "flex";
+            const errBox = document.getElementById("alc-login-error");
+            if (msg) { errBox.innerText = msg; errBox.style.display = "block"; }
+        }
+
+        function applySessionResponse(apiRes) {
+            CURRENT_SESSION_AUTH = apiRes.user;
+            if (Array.isArray(apiRes.accounts)) CLOUD_ACCOUNTS = apiRes.accounts;
+            hydrateDashboardPayload(apiRes.payload || {});
+            applyUserPermissions(CURRENT_SESSION_AUTH);
         }
 
         async function handleAlcLogin() {
             const inputId = document.getElementById("alc-login-id").value.trim();
-            const inputPw = document.getElementById("alc-login-pw").value.trim();
+            const pwEl = document.getElementById("alc-login-pw");
+            const inputPw = pwEl.value;
             const keepLogin = document.getElementById("alc-keep-login").checked;
             const errBox = document.getElementById("alc-login-error");
             const btn = document.getElementById("btn-login-submit");
@@ -762,30 +786,16 @@
             btn.disabled = true;
             btn.innerText = "Đang đăng nhập…";
             errBox.style.display = "none";
-
             try {
-                const inputHash = await sha256Hash(inputPw);
-                const apiRes = await authenticateAndFetchFromCloud(inputId, inputHash);
-                if (apiRes && apiRes.ok) {
-                    const authSession = { id: apiRes.user.id, name: apiRes.user.name, role: apiRes.user.role, pwHash: inputHash };
-                    CURRENT_SESSION_AUTH = authSession;
-                    sessionStorage.setItem("alc_cloud_session", JSON.stringify(authSession));
-                    if (keepLogin) localStorage.setItem("alc_cloud_persistent", JSON.stringify(authSession));
-                    else localStorage.removeItem("alc_cloud_persistent");
-
-                    if (Array.isArray(apiRes.accounts) && apiRes.accounts.length) {
-                        CLOUD_ACCOUNTS = apiRes.accounts.map(a => ({ id: a.id, name: a.name, role: a.role, pwHash: a.pwHash || (a.id.toLowerCase() === authSession.id.toLowerCase() ? inputHash : "") }));
-                    }
-                    hydrateDashboardPayload(apiRes.payload || OFFLINE_INITIAL_PAYLOAD);
-                    applyUserPermissions(authSession);
-                    hideLoginOverlaySmoothly();
-                } else if (OFFLINE_INITIAL_PAYLOAD && inputId.toUpperCase() === "ATT2026" && inputHash === "d85bddaabd06397fd0656a7670afc6f71fcda463560018026d49278d89c466e2") {
-                    CURRENT_SESSION_AUTH = { id: "ATT2026", name: "Quản trị viên (ALC)", role: "Admin", pwHash: inputHash };
-                    hydrateDashboardPayload(OFFLINE_INITIAL_PAYLOAD);
-                    applyUserPermissions(CURRENT_SESSION_AUTH);
+                const apiRes = await callApi("login", { id: inputId, password: inputPw, keep: keepLogin });
+                if (apiRes && apiRes.ok && apiRes.token) {
+                    CURRENT_TOKEN = apiRes.token;
+                    storeToken(apiRes.token, keepLogin);
+                    pwEl.value = "";
+                    applySessionResponse(apiRes);
                     hideLoginOverlaySmoothly();
                 } else {
-                    errBox.innerText = (apiRes?.message || "Tài khoản hoặc mật khẩu không chính xác!");
+                    errBox.innerText = (apiRes && apiRes.message) || "Tài khoản hoặc mật khẩu không chính xác!";
                     errBox.style.display = "block";
                 }
             } catch (err) {
@@ -797,9 +807,9 @@
             }
         }
 
-        function handleAlcLogout() {
-            sessionStorage.removeItem("alc_cloud_session");
-            localStorage.removeItem("alc_cloud_persistent");
+        async function handleAlcLogout() {
+            try { if (CURRENT_TOKEN) await callApi("logout"); } catch (e) {}
+            clearToken();
             window.location.reload();
         }
 
@@ -807,42 +817,37 @@
             if (!user?.id) return;
             document.getElementById("sb-user-id").innerText = `${user.id} · ${user.role || 'Viewer'}`;
             document.getElementById("sb-user-role").innerText = user.name || "ALC Member";
-            document.getElementById("nav-admin-item").style.display = user.role === "Admin" ? "block" : "none";
+            const isAdmin = user.role === "Admin";
+            document.getElementById("nav-admin-item").style.display = "block";
+            document.getElementById("nav-admin-label").innerText = isAdmin ? "Quản lý tài khoản" : "Đổi mật khẩu";
             renderUserTable();
         }
 
-        async function syncAccountsToGasCloud() {
-            if (CURRENT_SESSION_AUTH?.role !== "Admin") return false;
-            try {
-                const res = await fetch(GAS_API_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "text/plain;charset=utf-8" },
-                    body: JSON.stringify({ action: "update_users", id: CURRENT_SESSION_AUTH.id, pwHash: CURRENT_SESSION_AUTH.pwHash, accounts: CLOUD_ACCOUNTS })
-                });
-                const data = await res.json();
-                alert(data?.ok ? "Đã lưu danh sách tài khoản." : "Lỗi: " + (data?.message || ""));
-                return !!data?.ok;
-            } catch (e) {
-                alert("Lỗi kết nối máy chủ: " + e.message);
-                return false;
-            }
+        function showAccountMsg(res) {
+            const box = document.getElementById("account-msg");
+            box.style.display = "block";
+            box.className = "card " + (res && res.ok ? "msg-ok" : "msg-err");
+            box.innerText = (res && res.message) || (res && res.ok ? "Đã lưu." : "Có lỗi xảy ra.");
         }
 
         function renderUserTable() {
             const tbody = document.getElementById("alc-user-table-body");
             if (!tbody) return;
-            tbody.innerHTML = CLOUD_ACCOUNTS.map((u, i) => `
-                <tr>
-                    <td><b>${i + 1}</b></td>
-                    <td style="color:#0284C7; font-weight:800;">${escapeHtml(u.id)}</td>
-                    <td class="txt-muted">••••••••</td>
-                    <td>${escapeHtml(u.name || '-')}</td>
+            const meId = String(CURRENT_SESSION_AUTH?.id || '').toLowerCase();
+            tbody.innerHTML = CLOUD_ACCOUNTS.map((u, i) => {
+                const isRoot = String(u.id).toUpperCase() === "ATT2026";
+                const isMe = String(u.id).toLowerCase() === meId;
+                return `<tr>
+                    <td class="txt-muted">${i + 1}</td>
+                    <td class="plate">${escapeHtml(u.id)}${isMe ? ' <span class="badge bg-gray">Bạn</span>' : ''}</td>
+                    <td>${escapeHtml(u.name || '–')}</td>
                     <td><span class="badge ${u.role === 'Admin' ? 'bg-blue' : 'bg-gray'}">${escapeHtml(u.role)}</span></td>
                     <td style="text-align:right; white-space:nowrap;">
-                        <button onclick="openChangePasswordBox('${escapeHtml(u.id)}')" class="tool-btn">Đổi mật khẩu</button>
-                        ${u.id.toUpperCase() === "ATT2026" ? '<span style="color:#94A3B8; font-size:12px; padding:5px 6px;">Gốc</span>' : `<button onclick="deleteAlcUser('${escapeHtml(u.id)}')" class="tool-btn" style="color:#DC2626;">Xóa</button>`}
+                        <button class="tool-btn" data-id="${escapeHtml(u.id)}" onclick="openChangePasswordBox(this.dataset.id)">Đổi mật khẩu</button>
+                        ${isRoot || isMe ? '<span class="txt-muted" style="font-size:12px; padding:0 6px;">' + (isRoot ? 'Gốc' : '') + '</span>' : `<button class="tool-btn" style="color:#DC2626;" data-id="${escapeHtml(u.id)}" onclick="deleteAlcUser(this.dataset.id)">Xóa</button>`}
                     </td>
-                </tr>`).join("");
+                </tr>`;
+            }).join("");
         }
 
         function openChangePasswordBox(userId) {
@@ -859,58 +864,59 @@
         }
 
         async function confirmChangeAlcPassword() {
-            const pw1 = document.getElementById("change-pw-new1").value.trim();
-            const pw2 = document.getElementById("change-pw-new2").value.trim();
-            if (!pw1 || pw1 !== pw2) { alert("Mật khẩu không hợp lệ hoặc không khớp!"); return; }
-            const newHash = await sha256Hash(pw1);
-            CLOUD_ACCOUNTS.forEach(u => { if (u.id.toLowerCase() === TARGET_CHANGE_PW_ID.toLowerCase()) u.pwHash = newHash; });
-            if (CURRENT_SESSION_AUTH?.id.toLowerCase() === TARGET_CHANGE_PW_ID.toLowerCase()) {
-                CURRENT_SESSION_AUTH.pwHash = newHash;
-                sessionStorage.setItem("alc_cloud_session", JSON.stringify(CURRENT_SESSION_AUTH));
+            const pw1 = document.getElementById("change-pw-new1").value;
+            const pw2 = document.getElementById("change-pw-new2").value;
+            if (pw1.length < 8) { showAccountMsg({ ok: false, message: "Mật khẩu phải có ít nhất 8 ký tự." }); return; }
+            if (pw1 !== pw2) { showAccountMsg({ ok: false, message: "Hai lần nhập mật khẩu không khớp." }); return; }
+            const res = await callApi("change_password", { id: TARGET_CHANGE_PW_ID || CURRENT_SESSION_AUTH?.id, password: pw1 });
+            if (res?.ok) {
+                if (Array.isArray(res.accounts)) CLOUD_ACCOUNTS = res.accounts;
+                closeChangePasswordBox();
+                renderUserTable();
             }
-            closeChangePasswordBox();
-            renderUserTable();
-            await syncAccountsToGasCloud();
+            showAccountMsg(res);
         }
 
         async function addAlcUser() {
             const id = document.getElementById("new-user-id").value.trim();
-            const pw = document.getElementById("new-user-pw").value.trim();
+            const pw = document.getElementById("new-user-pw").value;
             const name = document.getElementById("new-user-name").value.trim() || "Nhân sự ALC";
             const role = document.getElementById("new-user-role").value;
-            if (!id || !pw) { alert("Vui lòng nhập đủ ID và Mật khẩu!"); return; }
-            if (CLOUD_ACCOUNTS.some(u => u.id.toLowerCase() === id.toLowerCase())) { alert("ID đã tồn tại!"); return; }
-            CLOUD_ACCOUNTS.push({ id, pwHash: await sha256Hash(pw), name, role });
-            document.getElementById("new-user-id").value = "";
-            document.getElementById("new-user-pw").value = "";
-            document.getElementById("new-user-name").value = "";
-            renderUserTable();
-            await syncAccountsToGasCloud();
+            if (!id || !pw) { showAccountMsg({ ok: false, message: "Vui lòng nhập đủ ID và mật khẩu." }); return; }
+            const res = await callApi("add_user", { user: { id, password: pw, name, role } });
+            if (res?.ok) {
+                CLOUD_ACCOUNTS = res.accounts || CLOUD_ACCOUNTS;
+                ["new-user-id", "new-user-pw", "new-user-name"].forEach(i => document.getElementById(i).value = "");
+                renderUserTable();
+            }
+            showAccountMsg(res);
         }
 
         async function deleteAlcUser(id) {
             if (!confirm(`Xóa tài khoản "${id}"?`)) return;
-            CLOUD_ACCOUNTS = CLOUD_ACCOUNTS.filter(u => u.id !== id);
-            renderUserTable();
-            await syncAccountsToGasCloud();
+            const res = await callApi("delete_user", { id });
+            if (res?.ok) { CLOUD_ACCOUNTS = res.accounts || CLOUD_ACCOUNTS; renderUserTable(); }
+            showAccountMsg(res);
         }
 
         window.addEventListener("DOMContentLoaded", async () => {
-            const saved = sessionStorage.getItem("alc_cloud_session") || localStorage.getItem("alc_cloud_persistent");
-            if (!saved) return;
+            // Bản offline (chỉ xuất khi bật EXPORT_OFFLINE_HTML): dữ liệu nằm sẵn trong file, không có đăng nhập
+            if (OFFLINE_INITIAL_PAYLOAD) {
+                document.getElementById("alc-login-overlay").style.display = "none";
+                CURRENT_SESSION_AUTH = { id: "OFFLINE", name: "Bản offline – không chia sẻ file này", role: "Viewer" };
+                hydrateDashboardPayload(OFFLINE_INITIAL_PAYLOAD);
+                applyUserPermissions(CURRENT_SESSION_AUTH);
+                document.getElementById("nav-admin-item").style.display = "none";
+                return;
+            }
+            const token = getStoredToken();
+            if (!token) return;
+            CURRENT_TOKEN = token;
             try {
-                const sess = JSON.parse(saved);
-                if (sess?.id && sess?.pwHash) {
-                    const apiRes = await authenticateAndFetchFromCloud(sess.id, sess.pwHash);
-                    if (apiRes?.ok) {
-                        CURRENT_SESSION_AUTH = sess;
-                        if (Array.isArray(apiRes.accounts) && apiRes.accounts.length) {
-                            CLOUD_ACCOUNTS = apiRes.accounts.map(a => ({ id: a.id, name: a.name, role: a.role, pwHash: a.pwHash || (a.id.toLowerCase() === sess.id.toLowerCase() ? sess.pwHash : "") }));
-                        }
-                        hydrateDashboardPayload(apiRes.payload || OFFLINE_INITIAL_PAYLOAD);
-                        applyUserPermissions(sess);
-                        document.getElementById("alc-login-overlay").style.display = "none";
-                    }
+                const apiRes = await callApi("fetch_payload");
+                if (apiRes?.ok) {
+                    applySessionResponse(apiRes);
+                    document.getElementById("alc-login-overlay").style.display = "none";
                 }
             } catch (e) {}
         });
@@ -991,6 +997,17 @@
             if (tabName === 'user_admin') {
                 document.getElementById('report-content-wrapper').style.display = 'none';
                 document.getElementById('admin-content-wrapper').style.display = 'block';
+                document.getElementById('account-msg').style.display = 'none';
+                const isAdmin = CURRENT_SESSION_AUTH?.role === 'Admin';
+                document.getElementById('adminCreateCard').style.display = isAdmin ? 'block' : 'none';
+                document.getElementById('adminListCard').style.display = isAdmin ? 'block' : 'none';
+                if (!isAdmin) {
+                    document.getElementById('pageTitle').innerText = 'Đổi mật khẩu';
+                    document.getElementById('pageDesc').innerText = 'Đổi mật khẩu cho tài khoản đang đăng nhập.';
+                    openChangePasswordBox(CURRENT_SESSION_AUTH?.id || '');
+                } else {
+                    closeChangePasswordBox();
+                }
                 renderUserTable();
                 return;
             }
@@ -1250,6 +1267,7 @@
                 { key: 'lit_do_gps', label: 'Đổ GPS (L)', type: 'num', placeholder: 'Lọc GPS...' },
                 { key: 'lech_do_dau', label: 'Lệch Dibee − GPS (L)', type: 'num', placeholder: 'Lọc lệch...' },
                 { key: 'pct_lech_do', label: 'Lệch (%)', type: 'num', placeholder: 'Lọc %...' },
+                { key: 'lech_dinh_muc', label: 'Vượt ĐM+2 (L)', type: 'num', placeholder: 'Lọc vượt...' },
                 { key: 'lit_rut_gps', label: 'Dầu rút (L)', type: 'num', placeholder: 'Lọc rút...' }
             ];
         }
@@ -1492,7 +1510,7 @@
             }
 
             if (!rows.length) {
-                tbody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:24px; color:#64748B;">Không có dữ liệu khớp với điều kiện tìm kiếm.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; padding:24px; color:#64748B;">Không có dữ liệu khớp với điều kiện tìm kiếm.</td></tr>`;
                 return;
             }
 
@@ -1507,7 +1525,7 @@
                 const lechCls = pctVal >= 3.0 ? 'txt-bad' : (pctVal <= -3.0 ? 'txt-warn' : '');
                 const lechText = lechVal > 0 ? `+${formatNum(lechVal)}` : (lechVal < 0 ? `−${formatNum(Math.abs(lechVal))}` : '0');
                 const pctText = r.lit_dibee > 0 ? `${pctVal > 0 ? '+' : (pctVal < 0 ? '−' : '')}${fmt1(Math.abs(pctVal))}%` : '–';
-                return `<tr><td style="white-space:nowrap;">${colTime}</td><td class="plate">${escapeHtml(r.bien_so)}</td><td>${escapeHtml(r.dong_xe)}</td><td class="num">${formatNum(r.km_gps)}</td><td class="num">${formatNum(r.lit_tieu_thu_gps)}</td><td class="num ${normCls}">${r.km_gps > 0 ? fmt1(r.dm_thuc_te) : '–'}</td><td class="num txt-muted">${fmt1(dmQd)}</td><td class="num">${formatNum(r.lit_dibee)}</td><td class="num">${formatNum(r.lit_do_gps)}</td><td class="num ${lechCls}">${lechText}</td><td class="num ${lechCls}">${pctText}</td><td class="num ${r.lit_rut_gps > 0 ? 'txt-bad' : 'txt-muted'}">${formatNum(r.lit_rut_gps)}</td></tr>`;
+                return `<tr><td style="white-space:nowrap;">${colTime}</td><td class="plate">${escapeHtml(r.bien_so)}</td><td>${escapeHtml(r.dong_xe)}</td><td class="num">${formatNum(r.km_gps)}</td><td class="num">${formatNum(r.lit_tieu_thu_gps)}</td><td class="num ${normCls}">${r.km_gps > 0 ? fmt1(r.dm_thuc_te) : '–'}</td><td class="num txt-muted">${fmt1(dmQd)}</td><td class="num">${formatNum(r.lit_dibee)}</td><td class="num">${formatNum(r.lit_do_gps)}</td><td class="num ${lechCls}">${lechText}</td><td class="num ${lechCls}">${pctText}</td><td class="num ${r.lech_dinh_muc > 0 ? 'txt-bad' : 'txt-muted'}" title="${r.ngay_vuot_dm || 0} ngày vượt · đã bù kẹt xe ${formatNum(r.lit_bu_ket_xe || 0)} L">${formatNum(r.lech_dinh_muc || 0)}</td><td class="num ${r.lit_rut_gps > 0 ? 'txt-bad' : 'txt-muted'}">${formatNum(r.lit_rut_gps)}</td></tr>`;
             }).join('');
         }
 
@@ -1727,10 +1745,10 @@
         function aggregateByVehicle(rows) {
             const m = {};
             rows.forEach(r => {
-                if (!m[r.bien_so]) m[r.bien_so] = { bien_so: r.bien_so, dong_xe: r.dong_xe, km: 0, tt: 0, dm_lit: 0, dibee: 0, doGps: 0, rut: 0, idle: 0, gioChay: 0, gioDung: 0, lechDM: 0, dinh_muc_qd: r.dinh_muc_qd || 36.0 };
+                if (!m[r.bien_so]) m[r.bien_so] = { bien_so: r.bien_so, dong_xe: r.dong_xe, km: 0, tt: 0, dm_lit: 0, dibee: 0, doGps: 0, rut: 0, idle: 0, gioChay: 0, gioDung: 0, lechDM: 0, ngayVuot: 0, buKetXe: 0, dinh_muc_qd: r.dinh_muc_qd || 36.0 };
                 const v = m[r.bien_so];
                 v.km += r.km_gps; v.tt += r.lit_tieu_thu_gps; v.dm_lit += r.lit_dinh_muc; v.dibee += r.lit_dibee; v.doGps += r.lit_do_gps;
-                v.rut += r.lit_rut_gps; v.idle += r.lit_dung_no_may; v.gioChay += r.gio_chay || 0; v.gioDung += r.gio_dung || 0; v.lechDM += r.lech_dinh_muc || 0;
+                v.rut += r.lit_rut_gps; v.idle += r.lit_dung_no_may; v.gioChay += r.gio_chay || 0; v.gioDung += r.gio_dung || 0; v.lechDM += r.lech_dinh_muc || 0; v.ngayVuot += r.ngay_vuot_dm || 0; v.buKetXe += r.lit_bu_ket_xe || 0;
                 if (r.dinh_muc_qd > 0) v.dinh_muc_qd = r.dinh_muc_qd;
             });
             return Object.values(m).map(v => ({
@@ -1744,15 +1762,15 @@
 
         function renderFuelInsights(vehAgg) {
             const chips = [];
-            const over = vehAgg.filter(v => v.km > 200 && v.rate - v.norm >= 2).sort((a, b) => (b.rate - b.norm) - (a.rate - a.norm));
-            const tol = vehAgg.filter(v => v.km > 200 && v.rate - v.norm > 0 && v.rate - v.norm < 2);
+            const over = vehAgg.filter(v => v.lechDM >= 1).sort((a, b) => b.lechDM - a.lechDM);
+            const tol = vehAgg.filter(v => v.lechDM < 1 && v.km > 200 && v.rate - v.norm > 0);
             const rut = vehAgg.filter(v => v.rut > 0).sort((a, b) => b.rut - a.rut);
             const lech = vehAgg.filter(v => v.dibee > 0 && v.lechPct >= 3).sort((a, b) => b.lechPct - a.lechPct);
             const idle = vehAgg.filter(v => v.idlePct >= 30).sort((a, b) => b.idlePct - a.idlePct);
             const list = (arr, fn) => arr.slice(0, 3).map(fn).join(', ') + (arr.length > 3 ? '…' : '');
-            if (over.length) chips.push({ level: 'bad', tag: 'Vượt định mức', html: `<b>${over.length} xe</b> vượt ≥ 2 L/100km: ` + list(over, v => `${escapeHtml(v.bien_so)} (+${fmt1(v.rate - v.norm)})`) });
-            else chips.push({ level: 'good', tag: 'Định mức', html: 'Không có xe vượt định mức ≥ 2 L/100km' });
-            if (tol.length) chips.push({ level: 'warn', tag: 'Trong dung sai', html: `<b>${tol.length} xe</b> vượt định mức dưới 2 L/100km` });
+            if (over.length) chips.push({ level: 'bad', tag: 'Vượt định mức', html: `<b>${over.length} xe</b> có ngày vượt ĐM + 2: ` + list(over, v => `${escapeHtml(v.bien_so)} (${formatNum(v.lechDM)} L / ${v.ngayVuot} ngày)`) });
+            else chips.push({ level: 'good', tag: 'Định mức', html: 'Không có xe vượt định mức + 2 L/100km' });
+            if (tol.length) chips.push({ level: 'warn', tag: 'Trong dung sai', html: `<b>${tol.length} xe</b> cao hơn định mức nhưng chưa vượt dung sai` });
             if (rut.length) chips.push({ level: 'bad', tag: 'Rút dầu', html: `<b>${rut.length} xe</b>: ` + list(rut, v => `${escapeHtml(v.bien_so)} (${formatNum(v.rut)} L)`) });
             if (lech.length) chips.push({ level: 'warn', tag: 'Lệch đổ dầu', html: `<b>${lech.length} xe</b> lệch Dibee − GPS ≥ 3%: ` + list(lech, v => `${escapeHtml(v.bien_so)} (${fmt1(v.lechPct)}%)`) });
             if (idle.length) chips.push({ level: 'warn', tag: 'Dừng nổ máy', html: `<b>${idle.length} xe</b> dừng nổ máy ≥ 30% thời gian: ` + list(idle, v => `${escapeHtml(v.bien_so)} (${Math.round(v.idlePct)}%)`) });
@@ -1887,7 +1905,7 @@
 
             } else if (mode === 'norm') {
                 document.getElementById('chart1Title').innerText = 'Xe vượt định mức nhiều nhất';
-                document.getElementById('chart1Note').innerText = 'Lít vượt sau khi đã trừ dung sai 2 L/100km, cộng dồn các kỳ đang lọc.';
+                document.getElementById('chart1Note').innerText = 'Tính theo từng ngày: chỉ phần tiêu hao trên (ĐM + 2 L/100km), đã trừ phần bù kẹt xe đã xác nhận; ngày tiết kiệm không bù cho ngày vượt.';
                 document.getElementById('chart2Title').innerText = 'Xe hao phí dầu do dừng nổ máy nhiều nhất';
                 document.getElementById('chart2Note').innerText = 'Lít tiêu thụ khi xe đứng yên nhưng không tắt máy.';
                 document.getElementById('tblTitle').innerText = 'Chi tiết theo đầu xe và kỳ lương';
@@ -1897,7 +1915,7 @@
                 const hbar = (div, arr, valFn, color, unitTxt) => Plotly.react(div, [{
                     y: arr.map(v => v.bien_so), x: arr.map(valFn), type: 'bar', orientation: 'h', marker: { color },
                     text: arr.map(v => `${formatNum(valFn(v))} L`), textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
-                    customdata: arr.map(v => v.dong_xe), hovertemplate: `<b>%{y}</b> · %{customdata}<br>${unitTxt}: %{x:,.0f} L<extra></extra>`
+                    customdata: arr.map(v => [v.dong_xe, v.ngayVuot, formatNum(v.buKetXe)]), hovertemplate: `<b>%{y}</b> · %{customdata[0]}<br>${unitTxt}: %{x:,.0f} L` + (unitTxt === 'Vượt định mức' ? '<br>%{customdata[1]} ngày vượt · đã bù kẹt xe %{customdata[2]} L' : '') + '<extra></extra>'
                 }], baseLayout({ margin: { t: 6, l: 10, r: 60, b: 36 }, xaxis: { showgrid: true, gridcolor: C.grid }, yaxis: { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: C.ink } } }), PLOTLY_CFG);
                 if (topDM.length) hbar('chart1', topDM, v => v.lechDM, C.bad, 'Vượt định mức');
                 else Plotly.react('chart1', [], baseLayout({ annotations: [{ text: 'Không có xe vượt định mức trong phạm vi đã chọn', showarrow: false, font: { color: '#64748B' } }], xaxis: { visible: false }, yaxis: { visible: false } }), PLOTLY_CFG);

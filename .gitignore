@@ -7,6 +7,9 @@
 *.log
 users.json
 ALC_Fuel_Analytics_Dashboard.html
+*.log.old
+alc_dashboard/
+tests/
 da_cap_nhat/
 du_lieu_moi/
 __pycache__/

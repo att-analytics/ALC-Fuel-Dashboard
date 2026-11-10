@@ -531,8 +531,9 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
             <!-- BẢNG CHI TIẾT -->
             <div class="card">
                 <div class="card-head">
-                    <div class="section-heading" id="tblTitle">Chi tiết dữ liệu</div>
+                    <div><div class="section-heading" id="tblTitle">Chi tiết dữ liệu</div><div class="chart-note" id="tblNote" style="display:none;"></div></div>
                     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span id="tblLimitNote" class="chart-note" style="margin:0;"></span>
                         <button id="btnResetTableSortFilter" class="tool-btn" onclick="resetTableSortAndFilters()" style="display:none;">Xóa lọc &amp; sắp xếp</button>
                         <div id="leaderOrderTableTools" style="display:none; align-items:center; gap:8px; flex-wrap:wrap;">
                             <span id="leaderOrderCountBadge" class="badge bg-gray">0 dòng lệnh</span>
@@ -881,8 +882,8 @@ const TAB_META = {
     leader_week: ["Điều vận", "Báo cáo theo tuần", "Sản lượng lệnh theo ngày, khách hàng và đầu xe trong các tuần gần nhất."],
     year_overview: ["Nhiên liệu · Đội 1", "Tổng quan theo tháng", "Quãng đường, tiêu thụ và suất tiêu hao nhiên liệu theo kỳ lương."],
     week_overview: ["Nhiên liệu · Đội 1", "Tổng quan theo tuần", "Quãng đường, tiêu thụ và suất tiêu hao nhiên liệu theo tuần."],
-    reconcile: ["Nhiên liệu · Đội 1", "Đối soát đổ dầu", "Đối chiếu lượng dầu thanh toán qua Dibee với lượng dầu cảm biến GPS ghi nhận."],
-    norm: ["Nhiên liệu · Đội 1", "Định mức & hao phí", "Lượng dầu vượt định mức tính theo từng ngày (chỉ phần trên ĐM + 2 L/100km, đã bù kẹt xe) và hao phí do dừng nổ máy."],
+    reconcile: ["Nhiên liệu · Đội 1", "Đối soát đổ dầu", "Đối chiếu từng lần đổ dầu thanh toán qua Dibee với lượng dầu cảm biến GPS ghi nhận vào bình, theo từng xe từng ngày."],
+    norm: ["Nhiên liệu · Đội 1", "Định mức & hao phí", "Lượng dầu tiêu thụ vượt định mức (phần trên ĐM + 2 L/100km, tính theo ngày, đã bù kẹt xe) và chi phí quy đổi theo giá dầu bình quân của kỳ."],
     data_import: ["Hệ thống", "Cập nhật dữ liệu", "Tải file xuất từ hệ thống GPS / Dibee / Leader; trang tự chuẩn hoá định dạng, ghi vào Google Sheet và cập nhật dashboard."],
     data_check: ["Hệ thống", "Kiểm tra dữ liệu", "Các vấn đề phát hiện khi đọc Google Sheet ở lần cập nhật gần nhất: dữ liệu thiếu, biển số lạ, số liệu bất thường, nguồn chậm cập nhật."],
     user_admin: ["Hệ thống", "Quản lý tài khoản", "Tạo, xoá, đổi mật khẩu và phân quyền tài khoản. Mọi thao tác được kiểm tra quyền trên máy chủ."]
@@ -896,6 +897,19 @@ const KPI_LABELS = {
         ["Dầu rút (GPS)", ""],
         ["Lệch đổ dầu Dibee − GPS", ""]
     ],
+    reconcile: [
+        ["Dầu đổ qua Dibee", ""],
+        ["Dầu đổ GPS ghi nhận", ""],
+        ["Lệch Dibee − GPS", ""],
+        ["Ngày-xe cần kiểm tra", ""],
+        ["Tỷ lệ khớp", ""]
+    ],
+    norm: [
+        ["Dầu vượt định mức", ""],
+        ["Chi phí vượt định mức", ""],
+        ["Giá dầu bình quân", ""],
+        ["Xe vượt định mức", ""]
+    ],
     leader: [
         ["Sản lượng cont", ""],
         ["Số lệnh hoàn thành", ""],
@@ -904,8 +918,8 @@ const KPI_LABELS = {
     ]
 };
 
-let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [];
-let CURRENT_FILTERED_LEADER_ORDERS = [], CURRENT_STD_TABLE_DATA = [], CURRENT_STD_IS_WEEK = false;
+let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [], FUEL_TX = [], PRICE_BY_KY = {};
+let CURRENT_FILTERED_LEADER_ORDERS = [], CURRENT_STD_TABLE_DATA = [], CURRENT_STD_IS_WEEK = false, CURRENT_STD_MODE = 'fuel';
 let TEAM1_VEHICLES = [], ALL_VEHICLES = [], VEH_TEAM_MAP = {}, MAX_DATE_GPS = "N/A";
 let DATA_CHECKS = { sources: [], items: [], counts: {} }, CHECK_FILTER = 'all';
 const MAX_WEEKS = 8;
@@ -1043,6 +1057,8 @@ function hydrateDashboardPayload(payload) {
     YEAR_DATA = payload.YEAR_DATA || [];
     WEEK_DATA = payload.WEEK_DATA || [];
     LEADER_ORDERS = payload.LEADER_ORDERS || [];
+    FUEL_TX = payload.FUEL_TX || [];
+    PRICE_BY_KY = payload.PRICE_BY_KY || {};
 
     TEAM1_VEHICLES = payload.TEAM1_VEHICLES || [];
     ALL_VEHICLES = payload.ALL_VEHICLES || [];
@@ -1306,7 +1322,7 @@ function onYearFilterChange() {
 }
 
 function applyKpiHeaderLabels(mode) {
-    const isFour = mode === 'leader';
+    const isFour = mode === 'leader' || mode === 'norm';
     const kpiGrid = document.getElementById('standardKpiGrid');
     kpiGrid.classList.toggle('cols-4', isFour);
     document.getElementById('kpiCard4').style.display = 'block';
@@ -1608,6 +1624,8 @@ function switchTab(tabName, el) {
     document.getElementById('standardKpiGrid').style.display = 'grid';
     document.getElementById('leaderWeekExtraSection').style.display = isLeader ? 'block' : 'none';
     document.getElementById('leaderOrderTableTools').style.display = isLeader ? 'flex' : 'none';
+    document.getElementById('tblLimitNote').style.display = isLeader ? 'none' : 'inline';
+    document.getElementById('tblNote').style.display = 'none';
     document.getElementById('overview-extra-section').style.display = (tabName === 'year_overview' || tabName === 'week_overview') ? 'block' : 'none';
 
     const chartsRowEl = document.getElementById('mainChartsRow');
@@ -1628,7 +1646,7 @@ function switchTab(tabName, el) {
     populatePeriodAndWeekSelectors();
     populateCustomerDropdown();
     updateVehicleDropdownForCurrentTab();
-    applyKpiHeaderLabels(isLeader ? 'leader' : 'fuel');
+    applyKpiHeaderLabels(isLeader ? 'leader' : (KPI_LABELS[tabName] ? tabName : 'fuel'));
     renderAll();
 }
 
@@ -1672,6 +1690,17 @@ function renderAll() {
         const prevP = previousKeys(allP, selP);
         const prevFiltered = YEAR_DATA.filter(r => prevP.includes(r.ky_luong) && rowOk(r));
         const prevLabel = prevP.length ? (prevP.length === 1 ? `kỳ ${prevP[0]}` : `${prevP[0]}–${prevP[prevP.length - 1]}`) : '';
+        if (CURRENT_TAB === 'reconcile') {
+            const txOk = r => (vSel === 'ALL' || r.bs === vSel) && (lineSel === 'ALL' || r.dx === lineSel);
+            const tx = FUEL_TX.filter(r => r.nam === ySel && r.ky >= minP && r.ky <= maxP && txOk(r));
+            const prevTx = prevP.length ? FUEL_TX.filter(r => prevP.includes(r.ky) && txOk(r)) : null;
+            renderReconcileTab(tx, selP, prevTx, prevLabel);
+            return;
+        }
+        if (CURRENT_TAB === 'norm') {
+            renderNormTab(filtered, selP, prevP.length ? prevFiltered : null, prevLabel);
+            return;
+        }
         renderKPIAndCharts(filtered, CURRENT_TAB, null, prevP.length ? prevFiltered : null, prevLabel);
     }
 }
@@ -1830,7 +1859,50 @@ const LEADER_TABLE_COLS = [
     { key: 'sc', label: 'Cont', type: 'num', placeholder: '0,5 / 1' }
 ];
 
+const TX_STATUS = {
+    khop: { label: 'Khớp', cls: 'bg-green', rank: 5 },
+    qua_dem: { label: 'Khớp khi gộp ngày kế', cls: 'bg-gray', rank: 4 },
+    dibee_hon: { label: 'Dibee > GPS', cls: 'bg-red', rank: 0 },
+    khong_gps: { label: 'GPS không ghi nhận', cls: 'bg-red', rank: 1 },
+    gps_hon: { label: 'GPS > Dibee', cls: 'bg-amber', rank: 2 },
+    khong_dibee: { label: 'Không có GD Dibee', cls: 'bg-amber', rank: 3 }
+};
+const TX_ISSUE = st => st !== 'khop' && st !== 'qua_dem';
+
+const TX_TABLE_COLS = [
+    { key: 'd', label: 'Ngày', type: 'date_dmy', placeholder: 'dd/mm...' },
+    { key: 'bs', label: 'Biển số xe', type: 'str', placeholder: 'Tìm BKS...' },
+    { key: 'dx', label: 'Dòng xe', type: 'str', placeholder: 'Dòng xe...' },
+    { key: 'tx', label: 'Tài xế', type: 'str', placeholder: 'Tài xế...' },
+    { key: 'tr', label: 'Trạm', type: 'str', placeholder: 'Trạm...' },
+    { key: 'gio', label: 'Giờ GD Dibee (lít)', type: 'str', placeholder: 'hh:mm...' },
+    { key: 'ld', label: 'Đổ Dibee (L)', type: 'num', placeholder: 'Lọc lít...' },
+    { key: 'lan', label: 'Lần đổ GPS', type: 'num', placeholder: 'Số lần...' },
+    { key: 'lg', label: 'Đổ GPS (L)', type: 'num', placeholder: 'Lọc lít...' },
+    { key: 'lech', label: 'Lệch Dibee − GPS (L)', type: 'num', placeholder: 'Lọc lệch...' },
+    { key: 'pct', label: 'Lệch (%)', type: 'num', placeholder: 'Lọc %...' },
+    { key: 'tien', label: 'Thành tiền (đ)', type: 'num', placeholder: 'Lọc tiền...' },
+    { key: 'st', label: 'Trạng thái', type: 'status', placeholder: 'Khớp / Dibee >...' }
+];
+
+const NORM_TABLE_COLS = [
+    { key: 'ky_luong', label: 'Kỳ lương', type: 'month_my', placeholder: 'mm/yyyy...' },
+    { key: 'bien_so', label: 'Biển số xe', type: 'str', placeholder: 'Tìm BKS...' },
+    { key: 'dong_xe', label: 'Dòng xe', type: 'str', placeholder: 'Dòng xe...' },
+    { key: 'km_gps', label: 'Quãng đường (km)', type: 'num', placeholder: 'Lọc km...' },
+    { key: 'dinh_muc_qd', label: 'Định mức (L/100km)', type: 'num', placeholder: 'Lọc ĐM...' },
+    { key: 'dm_thuc_te', label: 'Suất TH thực tế (L/100km)', type: 'num', placeholder: 'Lọc...' },
+    { key: 'lit_tieu_thu_gps', label: 'Tiêu thụ GPS (L)', type: 'num', placeholder: 'Lọc lít...' },
+    { key: 'ngay_vuot_dm', label: 'Ngày vượt', type: 'num', placeholder: 'Số ngày...' },
+    { key: 'lit_bu_ket_xe', label: 'Bù kẹt xe (L)', type: 'num', placeholder: 'Lọc bù...' },
+    { key: 'lech_dinh_muc', label: 'Dầu vượt ĐM+2 (L)', type: 'num', placeholder: 'Lọc vượt...' },
+    { key: 'gia_bq', label: 'Giá dầu BQ (đ/L)', type: 'num', placeholder: 'Lọc giá...' },
+    { key: 'chi_phi_vuot', label: 'Chi phí vượt (đ)', type: 'num', placeholder: 'Lọc tiền...' }
+];
+
 function getStdTableCols(isWeek) {
+    if (CURRENT_STD_MODE === 'tx') return TX_TABLE_COLS;
+    if (CURRENT_STD_MODE === 'norm') return NORM_TABLE_COLS;
     return [
         { key: isWeek ? 'tuan_short' : 'ky_luong', label: isWeek ? 'Tuần' : 'Kỳ lương', type: isWeek ? 'week' : 'month_my', placeholder: isWeek ? 'Wxx/yy...' : 'mm/yyyy...' },
         { key: 'bien_so', label: 'Biển số xe', type: 'str', placeholder: 'Tìm BKS...' },
@@ -1865,12 +1937,15 @@ function parseSortValue(row, colDef, isLeader) {
     if (colDef.type === 'week') {
         return String(row.tuan_code || raw || '');
     }
+    if (colDef.type === 'status') return (TX_STATUS[raw] || { rank: 9 }).rank;
     return String(raw || '').trim().toUpperCase();
 }
 
 function getFormattedCellStringForFilter(row, colDef, isLeader) {
     if (isLeader) return colDef.key === 'sc' ? fmtCont(Number(row.sc || 0)) : String(row[colDef.key] || '').toUpperCase();
     const k = colDef.key;
+    if (colDef.type === 'status') return (TX_STATUS[row.st]?.label || '').toUpperCase();
+    if (k === 'pct' || k === 'dinh_muc_qd') return `${Number(row[k] || 0).toFixed(1)} ${fmt1(row[k] || 0)}`.toUpperCase();
     if (k === 'tuan_short') return `${row.tuan_short || ''} ${row.tuan_label || ''}`.toUpperCase();
     if (k === 'dm_thuc_te') return Number(row.dm_thuc_te || 0).toFixed(1);
     if (k === 'lech_do_dau') {
@@ -2004,7 +2079,7 @@ function renderLeaderOrdersBody() {
             displayRows = displayRows.slice().sort((a, b) => {
                 const va = parseSortValue(a, colDef, true);
                 const vb = parseSortValue(b, colDef, true);
-                if (colDef.type === 'num') return (va - vb) * mul;
+                if (colDef.type === 'num' || colDef.type === 'status') return (va - vb) * mul;
                 return String(va).localeCompare(String(vb), 'vi') * mul;
             });
         }
@@ -2040,7 +2115,13 @@ function onStdColFilterInput(colKey, val) {
     debounce('stdCol', renderStandardTableBody);
 }
 
-function renderStandardTable(filtered, isWeek) {
+function renderStandardTable(filtered, isWeek, mode) {
+    const newMode = mode || CURRENT_STD_MODE;
+    if (mode && mode !== CURRENT_STD_MODE) {
+        STD_COL_FILTERS = {};
+        STD_SORT = mode === 'norm' ? { key: 'chi_phi_vuot', dir: 'desc' } : { key: null, dir: null };
+    }
+    CURRENT_STD_MODE = newMode;
     CURRENT_STD_TABLE_DATA = filtered || [];
     CURRENT_STD_IS_WEEK = Boolean(isWeek);
     const cols = getStdTableCols(CURRENT_STD_IS_WEEK);
@@ -2093,11 +2174,16 @@ function renderStandardTableBody() {
     }
 
     if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="13" style="text-align:center; padding:24px; color:#64748B;">Không có dữ liệu khớp với điều kiện tìm kiếm.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${cols.length}" style="text-align:center; padding:24px; color:#64748B;">Không có dữ liệu khớp với điều kiện tìm kiếm.</td></tr>`;
         return;
     }
 
-    tbody.innerHTML = rows.slice(0, 350).map(r => {
+    const LIMIT = 500;
+    const noteEl = document.getElementById('tblLimitNote');
+    if (noteEl) noteEl.innerText = rows.length > LIMIT ? `Đang hiển thị ${formatNum(LIMIT)}/${formatNum(rows.length)} dòng; dùng ô lọc ở đầu cột để thu hẹp.` : `${formatNum(rows.length)} dòng`;
+    if (CURRENT_STD_MODE === 'tx') { tbody.innerHTML = rows.slice(0, LIMIT).map(renderTxRow).join(''); return; }
+    if (CURRENT_STD_MODE === 'norm') { tbody.innerHTML = rows.slice(0, LIMIT).map(renderNormRow).join(''); return; }
+    tbody.innerHTML = rows.slice(0, LIMIT).map(r => {
         const colTime = CURRENT_STD_IS_WEEK ? `<span title="${escapeHtml(r.tuan_label)}">${escapeHtml(r.tuan_short || r.tuan_code)}</span>` : escapeHtml(r.ky_luong);
         const dmQd = r.dinh_muc_qd || 36.0;
         const diffNorm = r.dm_thuc_te - dmQd;
@@ -2443,7 +2529,7 @@ function renderKPIAndCharts(filtered, mode, extraWeekList, prevFiltered, prevLab
         const xl = pRange.map(m => 'T' + m.slice(0, 2));
         plotFuelOverviewCharts(xl, pRange, byMonth);
         renderTimeChartsAndNormRanking(xl, pRange.map(m => byMonth[m].gio_chay), pRange.map(m => byMonth[m].gio_dung), vehAgg);
-        renderStandardTable(filtered, false);
+        renderStandardTable(filtered, false, 'fuel');
 
     } else if (mode === 'week') {
         document.getElementById('chart1Title').innerText = 'Quãng đường theo tuần';
@@ -2460,54 +2546,7 @@ function renderKPIAndCharts(filtered, mode, extraWeekList, prevFiltered, prevLab
         const xLabels = extraWeekList.map(w => formatWeekHeaderLabel(w, byW[w].short));
         plotFuelOverviewCharts(xLabels, extraWeekList, byW);
         renderTimeChartsAndNormRanking(xLabels, extraWeekList.map(w => byW[w].gio_chay), extraWeekList.map(w => byW[w].gio_dung), vehAgg);
-        renderStandardTable(filtered, true);
-
-    } else if (mode === 'reconcile') {
-        document.getElementById('chart1Title').innerText = 'Lượng dầu đổ: Dibee so với GPS';
-        document.getElementById('chart1Note').innerText = 'Dibee: lượng đã thanh toán. GPS: lượng cảm biến ghi nhận vào bình.';
-        document.getElementById('chart2Title').innerText = 'Xe lệch dương nhiều nhất (Dibee > GPS)';
-        document.getElementById('chart2Note').innerText = 'Lít đã thanh toán nhưng cảm biến không ghi nhận. Đỏ: lệch ≥ 3%.';
-        document.getElementById('tblTitle').innerText = 'Chi tiết theo đầu xe và kỳ lương';
-
-        const byP = {};
-        filtered.forEach(r => {
-            if (!byP[r.ky_luong]) byP[r.ky_luong] = { dibee: 0, do_gps: 0 };
-            byP[r.ky_luong].dibee += r.lit_dibee; byP[r.ky_luong].do_gps += r.lit_do_gps;
-        });
-        const xP = Object.keys(byP).sort((a, b) => kyKey(a).localeCompare(kyKey(b)));
-        const xl = xP.map(k => 'T' + k.slice(0, 2));
-        Plotly.react('chart1', [
-            { x: xl, y: xP.map(k => byP[k].dibee), name: 'Dibee', type: 'bar', marker: { color: C.s1 }, hovertemplate: '%{x} · Dibee: <b>%{y:,.0f} L</b><extra></extra>' },
-            { x: xl, y: xP.map(k => byP[k].do_gps), name: 'GPS', type: 'bar', marker: { color: C.s2 }, hovertemplate: '%{x} · GPS: <b>%{y:,.0f} L</b><extra></extra>' }
-        ], baseLayout({ barmode: 'group', bargap: 0.3, bargroupgap: 0.08, showlegend: true, legend: { orientation: 'h', y: 1.1, x: 0, font: { size: 12 } }, yaxis: { title: { text: 'Lít', font: { size: 11, color: '#64748B' } } } }), PLOTLY_CFG);
-
-        const top12 = vehAgg.filter(v => v.dibee - v.doGps > 0).sort((a, b) => (b.dibee - b.doGps) - (a.dibee - a.doGps)).slice(0, 12).reverse();
-        Plotly.react('chart2', [{
-            y: top12.map(v => v.bien_so), x: top12.map(v => v.dibee - v.doGps), type: 'bar', orientation: 'h',
-            marker: { color: top12.map(v => v.lechPct >= 3 ? C.bad : C.s1) },
-            text: top12.map(v => `${formatNum(v.dibee - v.doGps)} L · ${fmt1(v.lechPct)}%`), textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
-            hovertemplate: '<b>%{y}</b><br>Lệch: %{x:,.0f} L<extra></extra>'
-        }], baseLayout({ margin: { t: 6, l: 10, r: 110, b: 36 }, xaxis: { showgrid: true, gridcolor: C.grid }, yaxis: { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: C.ink } } }), PLOTLY_CFG);
-        renderStandardTable(filtered, false);
-
-    } else if (mode === 'norm') {
-        document.getElementById('chart1Title').innerText = 'Xe vượt định mức nhiều nhất';
-        document.getElementById('chart1Note').innerText = 'Tính theo từng ngày: chỉ phần tiêu hao trên (ĐM + 2 L/100km), đã trừ phần bù kẹt xe đã xác nhận; ngày tiết kiệm không bù cho ngày vượt.';
-        document.getElementById('chart2Title').innerText = 'Xe hao phí dầu do dừng nổ máy nhiều nhất';
-        document.getElementById('chart2Note').innerText = 'Lít tiêu thụ khi xe đứng yên nhưng không tắt máy.';
-        document.getElementById('tblTitle').innerText = 'Chi tiết theo đầu xe và kỳ lương';
-
-        const topDM = vehAgg.filter(v => v.lechDM > 0).sort((a, b) => b.lechDM - a.lechDM).slice(0, 15).reverse();
-        const topIdle = vehAgg.filter(v => v.idle > 0).sort((a, b) => b.idle - a.idle).slice(0, 12).reverse();
-        const hbar = (div, arr, valFn, color, unitTxt) => Plotly.react(div, [{
-            y: arr.map(v => v.bien_so), x: arr.map(valFn), type: 'bar', orientation: 'h', marker: { color },
-            text: arr.map(v => `${formatNum(valFn(v))} L`), textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
-            customdata: arr.map(v => [v.dong_xe, v.ngayVuot, formatNum(v.buKetXe)]), hovertemplate: `<b>%{y}</b> · %{customdata[0]}<br>${unitTxt}: %{x:,.0f} L` + (unitTxt === 'Vượt định mức' ? '<br>%{customdata[1]} ngày vượt · đã bù kẹt xe %{customdata[2]} L' : '') + '<extra></extra>'
-        }], baseLayout({ margin: { t: 6, l: 10, r: 60, b: 36 }, xaxis: { showgrid: true, gridcolor: C.grid }, yaxis: { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: C.ink } } }), PLOTLY_CFG);
-        if (topDM.length) hbar('chart1', topDM, v => v.lechDM, C.bad, 'Vượt định mức');
-        else Plotly.react('chart1', [], baseLayout({ annotations: [{ text: 'Không có xe vượt định mức trong phạm vi đã chọn', showarrow: false, font: { color: '#64748B' } }], xaxis: { visible: false }, yaxis: { visible: false } }), PLOTLY_CFG);
-        hbar('chart2', topIdle, v => v.idle, C.s1, 'Dừng nổ máy');
-        renderStandardTable(filtered, false);
+        renderStandardTable(filtered, true, 'fuel');
     }
 }
 
@@ -2550,6 +2589,214 @@ function renderTimeChartsAndNormRanking(xAxisLabels, arrChay, arrDung, vehAgg) {
     ], baseLayout({ margin: { t: 6, l: 10, r: 110, b: 40 }, xaxis: { showgrid: true, gridcolor: C.grid, range: [0, maxVal * 1.12], title: { text: 'L/100km', font: { size: 11, color: '#64748B' } } }, yaxis: { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: C.ink } } }), PLOTLY_CFG);
 }
 
+
+// ================= ĐỐI SOÁT ĐỔ DẦU (từng xe-ngày) & ĐỊNH MỨC – CHI PHÍ =================
+const fmtMoney = n => `${formatNum(n)} đ`;
+const fmtMoneyShort = n => {
+    const a = Math.abs(n || 0);
+    if (a >= 1e9) return `${(n / 1e9).toLocaleString('vi-VN', { maximumFractionDigits: 2 })} tỷ`;
+    if (a >= 1e6) return `${(n / 1e6).toLocaleString('vi-VN', { maximumFractionDigits: 1 })} tr`;
+    return formatNum(n);
+};
+const signed = (v, digits) => {
+    const t = digits ? fmt1(Math.abs(v)) : formatNum(Math.abs(v));
+    return v > 0 ? `+${t}` : (v < 0 ? `−${t}` : '0');
+};
+const kyLabel = k => 'T' + String(k).slice(0, 2) + (String(k).slice(3) ? '/' + String(k).slice(5) : '');
+
+function txStats(rows) {
+    const s = { n: rows.length, ld: 0, lg: 0, ngd: 0, lan: 0, tien: 0, pos: 0, neg: 0, ok: 0, issue: 0, bad: 0, warn: 0, byStatus: {} };
+    rows.forEach(r => {
+        s.ld += r.ld; s.lg += r.lg; s.ngd += r.ngd; s.lan += r.lan; s.tien += r.tien;
+        if (r.lech > 0) s.pos += r.lech; else s.neg += -r.lech;
+        s.byStatus[r.st] = (s.byStatus[r.st] || 0) + 1;
+        if (TX_ISSUE(r.st)) { s.issue++; if (r.st === 'dibee_hon' || r.st === 'khong_gps') s.bad++; else s.warn++; } else s.ok++;
+    });
+    s.lech = s.ld - s.lg;
+    s.lechPct = s.ld > 0 ? s.lech / s.ld * 100 : 0;
+    s.okPct = s.n ? s.ok / s.n * 100 : 0;
+    return s;
+}
+
+function renderTxRow(r) {
+    const st = TX_STATUS[r.st] || { label: r.st, cls: 'bg-gray' };
+    const issue = TX_ISSUE(r.st);
+    const lechCls = !issue ? 'txt-muted' : (r.lech > 0 ? 'txt-bad' : 'txt-warn');
+    return `<tr><td style="white-space:nowrap;">${escapeHtml(r.d)}</td><td class="plate">${escapeHtml(r.bs)}</td><td>${escapeHtml(r.dx)}</td>`
+        + `<td>${escapeHtml(r.tx || '–')}</td><td style="white-space:nowrap;">${escapeHtml(r.tr || '–')}</td><td style="white-space:nowrap;" class="txt-muted">${escapeHtml(r.gio || '–')}</td>`
+        + `<td class="num">${r.ld ? formatNum(r.ld) : '–'}${r.ngd > 1 ? ` <span class="txt-muted">(${r.ngd} GD)</span>` : ''}</td>`
+        + `<td class="num">${r.lan || '–'}</td><td class="num">${r.lg ? formatNum(r.lg) : '–'}</td>`
+        + `<td class="num ${lechCls}">${signed(Math.round(r.lech))}</td><td class="num ${lechCls}">${r.ld > 0 ? signed(r.pct, 1) + '%' : '–'}</td>`
+        + `<td class="num">${r.tien ? formatNum(r.tien) : '–'}</td><td><span class="badge ${st.cls}">${escapeHtml(st.label)}</span></td></tr>`;
+}
+
+function renderNormRow(r) {
+    const over = (r.lech_dinh_muc || 0) > 0;
+    const diffNorm = (r.dm_thuc_te || 0) - (r.dinh_muc_qd || 0);
+    const rateCls = r.km_gps <= 0 ? 'txt-muted' : (diffNorm >= 2 ? 'txt-bad' : (diffNorm > 0 ? 'txt-warn' : ''));
+    return `<tr><td>${escapeHtml(r.ky_luong)}</td><td class="plate">${escapeHtml(r.bien_so)}</td><td>${escapeHtml(r.dong_xe)}</td>`
+        + `<td class="num">${formatNum(r.km_gps)}</td><td class="num txt-muted">${fmt1(r.dinh_muc_qd)}</td>`
+        + `<td class="num ${rateCls}">${r.km_gps > 0 ? fmt1(r.dm_thuc_te) : '–'}</td><td class="num">${formatNum(r.lit_tieu_thu_gps)}</td>`
+        + `<td class="num ${r.ngay_vuot_dm ? '' : 'txt-muted'}">${r.ngay_vuot_dm || 0}</td><td class="num txt-muted">${r.lit_bu_ket_xe ? formatNum(r.lit_bu_ket_xe) : '–'}</td>`
+        + `<td class="num ${over ? 'txt-bad' : 'txt-muted'}">${formatNum(r.lech_dinh_muc || 0)}</td>`
+        + `<td class="num txt-muted">${r.gia_bq ? formatNum(r.gia_bq) : '–'}</td>`
+        + `<td class="num ${over ? 'txt-bad' : 'txt-muted'}">${formatNum(r.chi_phi_vuot || 0)}</td></tr>`;
+}
+
+function setKpi(idx, valHtml, sub) {
+    const ids = [['kpiKm', 'kpiKmSub'], ['kpiTieuThu', 'kpiTieuThuSub'], ['kpiDinhMuc', 'kpiDinhMucSub'], ['kpiRut', 'kpiRutSub'], ['kpiLechDo', 'kpiLechDoSub']][idx - 1];
+    document.getElementById(ids[0]).innerHTML = valHtml;
+    document.getElementById(ids[1]).innerText = sub || '';
+}
+
+function emptyChart(div, text) {
+    Plotly.react(div, [], baseLayout({ annotations: [{ text, showarrow: false, font: { color: '#64748B' } }], xaxis: { visible: false }, yaxis: { visible: false } }), PLOTLY_CFG);
+}
+
+function renderReconcileTab(tx, selP, prevTx, prevLabel) {
+    const s = txStats(tx);
+    const p = prevTx && prevTx.length ? txStats(prevTx) : null;
+
+    setKpi(1, valUnit(formatNum(s.ld), 'lít'), `${formatNum(s.ngd)} giao dịch · ${fmtMoneyShort(s.tien)} đ`);
+    setKpiDelta(1, s.ld, p?.ld, null, prevLabel); setKpiStatus(1, '');
+    setKpi(2, valUnit(formatNum(s.lg), 'lít'), `${formatNum(s.lan)} lần đổ cảm biến ghi nhận`);
+    setKpiDelta(2, s.lg, p?.lg, null, prevLabel); setKpiStatus(2, '');
+    setKpi(3, valUnit(signed(Math.round(s.lech)), 'lít'), `${signed(s.lechPct, 1)}% · lệch dương ${formatNum(s.pos)} L / lệch âm ${formatNum(s.neg)} L`);
+    setKpiDelta(3, s.lechPct, p ? p.lechPct : null, false, prevLabel, true);
+    setKpiStatus(3, s.ld <= 0 ? '' : (s.lechPct >= 3 ? 'bad' : (Math.abs(s.lechPct) >= 1 ? 'warn' : 'good')));
+    setKpi(4, valUnit(formatNum(s.issue), 'ngày-xe'), `${s.bad} Dibee nhiều hơn / GPS không ghi nhận · ${s.warn} GPS nhiều hơn`);
+    setKpiDelta(4, s.issue, p?.issue, false, prevLabel);
+    setKpiStatus(4, s.bad ? 'bad' : (s.warn ? 'warn' : 'good'));
+    setKpi(5, valUnit(fmt1(s.okPct), '%'), `${formatNum(s.ok)}/${formatNum(s.n)} ngày-xe có đổ dầu khớp (lệch ≤ 5 L hoặc ≤ 3%)`);
+    setKpiDelta(5, s.okPct, p ? p.okPct : null, true, prevLabel, true);
+    setKpiStatus(5, s.n ? (s.okPct >= 90 ? 'good' : (s.okPct >= 75 ? 'warn' : 'bad')) : '');
+
+    // Điểm cần chú ý
+    const byVeh = {};
+    tx.forEach(r => {
+        if (!byVeh[r.bs]) byVeh[r.bs] = { bs: r.bs, dx: r.dx, pos: 0, n: 0, khongGps: 0, khongDibee: 0, ld: 0, lg: 0 };
+        const v = byVeh[r.bs];
+        v.ld += r.ld; v.lg += r.lg;
+        if (r.st === 'dibee_hon' || r.st === 'khong_gps') { v.pos += r.lech; v.n++; }
+        if (r.st === 'khong_gps') v.khongGps++;
+        if (r.st === 'khong_dibee') v.khongDibee++;
+    });
+    const vehs = Object.values(byVeh);
+    const list = (arr, fn) => arr.slice(0, 3).map(fn).join(', ') + (arr.length > 3 ? '…' : '');
+    const chips = [];
+    const risk = vehs.filter(v => v.pos > 0).sort((a, b) => b.pos - a.pos);
+    if (risk.length) chips.push({ level: 'bad', tag: 'Dibee > GPS', html: `<b>${risk.length} xe</b> có dầu đã thanh toán nhưng cảm biến ghi nhận thiếu: ` + list(risk, v => `${escapeHtml(v.bs)} (+${formatNum(v.pos)} L / ${v.n} ngày)`) });
+    else if (tx.length) chips.push({ level: 'good', tag: 'Dibee > GPS', html: 'Không có ngày nào Dibee nhiều hơn GPS ngoài dung sai' });
+    const noGps = vehs.filter(v => v.khongGps).sort((a, b) => b.khongGps - a.khongGps);
+    if (noGps.length) chips.push({ level: 'bad', tag: 'GPS không ghi nhận', html: `<b>${s.byStatus.khong_gps} ngày-xe</b> có giao dịch Dibee nhưng GPS không ghi nhận lần đổ: ` + list(noGps, v => `${escapeHtml(v.bs)} (${v.khongGps})`) });
+    const noDibee = vehs.filter(v => v.khongDibee).sort((a, b) => b.khongDibee - a.khongDibee);
+    if (noDibee.length) chips.push({ level: 'warn', tag: 'Đổ ngoài Dibee?', html: `<b>${s.byStatus.khong_dibee} ngày-xe</b> GPS có đổ dầu nhưng không có giao dịch Dibee: ` + list(noDibee, v => `${escapeHtml(v.bs)} (${v.khongDibee})`) });
+    if (s.byStatus.qua_dem) chips.push({ level: 'info', tag: 'Qua đêm', html: `<b>${s.byStatus.qua_dem} ngày-xe</b> lệch do đổ sát nửa đêm, gộp với ngày kế thì khớp` });
+    renderInsights(chips);
+
+    // Biểu đồ
+    document.getElementById('chart1Title').innerText = 'Lượng dầu đổ: Dibee so với GPS';
+    document.getElementById('chart1Note').innerText = 'Dibee: lượng đã thanh toán. GPS: lượng cảm biến ghi nhận vào bình.';
+    const keys = selP.length ? selP : [...new Set(tx.map(r => r.ky))].sort((a, b) => kyKey(a).localeCompare(kyKey(b)));
+    const byP = {}; keys.forEach(k => { byP[k] = { ld: 0, lg: 0 }; });
+    tx.forEach(r => { if (byP[r.ky]) { byP[r.ky].ld += r.ld; byP[r.ky].lg += r.lg; } });
+    const xl = keys.map(kyLabel);
+    Plotly.react('chart1', [
+        { x: xl, y: keys.map(k => byP[k].ld), name: 'Dibee', type: 'bar', marker: { color: C.s1 }, hovertemplate: '%{x} · Dibee: <b>%{y:,.0f} L</b><extra></extra>' },
+        { x: xl, y: keys.map(k => byP[k].lg), name: 'GPS', type: 'bar', marker: { color: C.s2 }, hovertemplate: '%{x} · GPS: <b>%{y:,.0f} L</b><extra></extra>' }
+    ], baseLayout({ barmode: 'group', bargap: 0.3, bargroupgap: 0.08, showlegend: true, legend: { orientation: 'h', y: 1.1, x: 0, font: { size: 12 } }, yaxis: { title: { text: 'Lít', font: { size: 11, color: '#64748B' } } } }), PLOTLY_CFG);
+
+    document.getElementById('chart2Title').innerText = 'Xe có dầu thanh toán chưa được ghi nhận nhiều nhất';
+    document.getElementById('chart2Note').innerText = 'Tổng lít lệch của các ngày "Dibee > GPS" và "GPS không ghi nhận" (đã loại ngày khớp khi gộp qua đêm).';
+    const top = risk.slice(0, 12).reverse();
+    if (top.length) {
+        Plotly.react('chart2', [{
+            y: top.map(v => v.bs), x: top.map(v => v.pos), type: 'bar', orientation: 'h', marker: { color: C.bad },
+            text: top.map(v => `${formatNum(v.pos)} L · ${v.n} ngày`), textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
+            customdata: top.map(v => [v.dx, formatNum(v.ld), formatNum(v.lg)]),
+            hovertemplate: '<b>%{y}</b> · %{customdata[0]}<br>Lệch chưa giải thích: %{x:,.0f} L<br>Cả kỳ: Dibee %{customdata[1]} L / GPS %{customdata[2]} L<extra></extra>'
+        }], baseLayout({ margin: { t: 6, l: 10, r: 110, b: 36 }, xaxis: { showgrid: true, gridcolor: C.grid }, yaxis: { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: C.ink } } }), PLOTLY_CFG);
+    } else emptyChart('chart2', 'Không có xe lệch dương trong phạm vi đã chọn');
+
+    document.getElementById('tblTitle').innerText = 'Chi tiết từng lần đổ dầu (theo xe · ngày)';
+    const note = document.getElementById('tblNote');
+    note.style.display = 'block';
+    note.innerText = 'GPS chỉ ghi tổng lít đổ và số lần đổ mỗi ngày, nên mỗi dòng là một xe trong một ngày; ngày có 1 giao dịch là so sánh đúng từng giao dịch. Khớp: lệch ≤ 5 lít hoặc ≤ 3%. Lọc cột "Trạng thái" để xem riêng giao dịch bất thường.';
+    renderStandardTable(tx, false, 'tx');
+}
+
+function renderNormTab(rows, selP, prevRows, prevLabel) {
+    const sum = (arr, k) => arr.reduce((a, r) => a + (r[k] || 0), 0);
+    const lit = sum(rows, 'lech_dinh_muc'), cost = sum(rows, 'chi_phi_vuot'), days = sum(rows, 'ngay_vuot_dm'), bu = sum(rows, 'lit_bu_ket_xe');
+    const pLit = prevRows ? sum(prevRows, 'lech_dinh_muc') : null, pCost = prevRows ? sum(prevRows, 'chi_phi_vuot') : null;
+    const vehAgg = {};
+    rows.forEach(r => {
+        if (!vehAgg[r.bien_so]) vehAgg[r.bien_so] = { bs: r.bien_so, dx: r.dong_xe, lit: 0, cost: 0, days: 0, km: 0, tt: 0, dmLit: 0 };
+        const v = vehAgg[r.bien_so];
+        v.lit += r.lech_dinh_muc || 0; v.cost += r.chi_phi_vuot || 0; v.days += r.ngay_vuot_dm || 0;
+        v.km += r.km_gps || 0; v.tt += r.lit_tieu_thu_gps || 0; v.dmLit += r.lit_dinh_muc || 0;
+    });
+    const vehs = Object.values(vehAgg);
+    const overVeh = vehs.filter(v => v.lit >= 1).sort((a, b) => b.cost - a.cost);
+    const activeVeh = vehs.filter(v => v.km > 0).length;
+    const prices = selP.map(k => PRICE_BY_KY[k]).filter(Boolean);
+    const avgPrice = prices.length ? prices.reduce((a, p) => a + p.gia_bq, 0) / prices.length : 0;
+
+    setKpi(1, valUnit(formatNum(lit), 'lít'), `${formatNum(days)} ngày-xe vượt ĐM + 2 · đã bù kẹt xe ${formatNum(bu)} L`);
+    setKpiDelta(1, lit, pLit, false, prevLabel); setKpiStatus(1, lit >= 1 ? 'bad' : 'good');
+    setKpi(2, valUnit(fmtMoneyShort(cost), 'đ'), `= lít vượt × giá dầu bình quân của từng kỳ`);
+    setKpiDelta(2, cost, pCost, false, prevLabel); setKpiStatus(2, cost > 0 ? 'bad' : 'good');
+    const nDot = prices.reduce((a, p) => a + (p.dot || []).length, 0);
+    setKpi(3, valUnit(formatNum(avgPrice), 'đ/lít'), prices.length === 1
+        ? `${nDot} đợt giá${prices[0].tram ? ' (' + prices[0].tram + ')' : ''}: ` + prices[0].dot.map(d => `${formatNum(d.gia)} (${d.tu}–${d.den})`).join(' · ')
+        : `Trung bình ${prices.length} kỳ · ${nDot} đợt giá`);
+    const pPrices = prevRows ? [...new Set(prevRows.map(r => r.ky_luong))].map(k => PRICE_BY_KY[k]).filter(Boolean) : [];
+    setKpiDelta(3, avgPrice, pPrices.length ? pPrices.reduce((a, p) => a + p.gia_bq, 0) / pPrices.length : null, null, prevLabel); setKpiStatus(3, '');
+    setKpi(4, valUnit(`${overVeh.length}/${activeVeh}`, 'xe'), overVeh.length ? `Cao nhất: ${overVeh[0].bs} · ${formatNum(overVeh[0].lit)} L · ${fmtMoneyShort(overVeh[0].cost)} đ` : 'Không có xe vượt định mức + 2 L/100km');
+    setKpiDelta(4, overVeh.length, prevRows ? new Set(prevRows.filter(r => (r.lech_dinh_muc || 0) >= 1).map(r => r.bien_so)).size : null, false, prevLabel);
+    setKpiStatus(4, overVeh.length ? 'warn' : 'good');
+
+    const chips = [];
+    const list = (arr, fn) => arr.slice(0, 3).map(fn).join(', ') + (arr.length > 3 ? '…' : '');
+    if (overVeh.length) chips.push({ level: 'bad', tag: 'Chi phí vượt', html: `<b>${overVeh.length} xe</b> vượt định mức, tổng ${fmtMoney(cost)}: ` + list(overVeh, v => `${escapeHtml(v.bs)} (${fmtMoneyShort(v.cost)} đ / ${formatNum(v.lit)} L)`) });
+    else chips.push({ level: 'good', tag: 'Định mức', html: 'Không có xe vượt định mức + 2 L/100km' });
+    const missing = selP.filter(k => !PRICE_BY_KY[k]);
+    if (missing.length) chips.push({ level: 'warn', tag: 'Thiếu giá dầu', html: `Kỳ ${missing.join(', ')} chưa có giao dịch Dibee nên chưa quy đổi được chi phí` });
+    chips.push({ level: 'info', tag: 'Cách tính', html: 'Giá dầu bình quân kỳ = tổng giá các đợt giá trong kỳ / số đợt giá (giá lấy từ giao dịch Dibee)' });
+    renderInsights(chips);
+
+    document.getElementById('chart1Title').innerText = 'Xe có chi phí vượt định mức cao nhất';
+    document.getElementById('chart1Note').innerText = 'Chi phí = lít vượt ĐM + 2 (tính theo ngày, đã bù kẹt xe) × giá dầu bình quân của kỳ.';
+    const top = overVeh.slice(0, 15).reverse();
+    document.getElementById('chart1').style.height = Math.max(340, top.length * 26 + 60) + 'px';
+    if (top.length) {
+        Plotly.react('chart1', [{
+            y: top.map(v => v.bs), x: top.map(v => v.cost), type: 'bar', orientation: 'h', marker: { color: C.bad },
+            text: top.map(v => `${fmtMoneyShort(v.cost)} đ · ${formatNum(v.lit)} L`), textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
+            customdata: top.map(v => [v.dx, formatNum(v.lit), v.days, fmt1(v.km > 0 ? v.tt / v.km * 100 : 0), fmt1(v.km > 0 ? v.dmLit / v.km * 100 : 0)]),
+            hovertemplate: '<b>%{y}</b> · %{customdata[0]}<br>Chi phí vượt: <b>%{x:,.0f} đ</b><br>%{customdata[1]} L vượt / %{customdata[2]} ngày<br>Suất TH %{customdata[3]} · định mức %{customdata[4]} L/100km<extra></extra>'
+        }], baseLayout({ margin: { t: 6, l: 10, r: 130, b: 36 }, xaxis: { showgrid: true, gridcolor: C.grid, separatethousands: true }, yaxis: { gridcolor: 'rgba(0,0,0,0)', tickfont: { color: C.ink } } }), PLOTLY_CFG);
+    } else emptyChart('chart1', 'Không có xe vượt định mức trong phạm vi đã chọn');
+
+    document.getElementById('chart2Title').innerText = 'Chi phí vượt định mức theo kỳ lương';
+    document.getElementById('chart2Note').innerText = 'Rê chuột để xem lít vượt và giá dầu bình quân từng kỳ.';
+    document.getElementById('chart2').style.height = document.getElementById('chart1').style.height;
+    const byK = {}; selP.forEach(k => { byK[k] = { cost: 0, lit: 0 }; });
+    rows.forEach(r => { if (byK[r.ky_luong]) { byK[r.ky_luong].cost += r.chi_phi_vuot || 0; byK[r.ky_luong].lit += r.lech_dinh_muc || 0; } });
+    const yC = selP.map(k => byK[k].cost);
+    Plotly.react('chart2', [{
+        x: selP.map(kyLabel), y: yC, type: 'bar', marker: { color: C.s1 },
+        text: yC.map(v => v > 0 ? fmtMoneyShort(v) : ''), textposition: 'outside', textfont: { size: 10.5, color: C.ink }, cliponaxis: false,
+        customdata: selP.map(k => [formatNum(byK[k].lit), PRICE_BY_KY[k] ? formatNum(PRICE_BY_KY[k].gia_bq) : '–', PRICE_BY_KY[k] ? PRICE_BY_KY[k].dot.length : 0]),
+        hovertemplate: '%{x}<br>Chi phí vượt: <b>%{y:,.0f} đ</b><br>%{customdata[0]} L vượt<br>Giá BQ %{customdata[1]} đ/L (%{customdata[2]} đợt giá)<extra></extra>'
+    }], baseLayout({ yaxis: { range: [0, Math.max(...yC, 1000) * 1.18], title: { text: 'đồng', font: { size: 11, color: '#64748B' } } } }), PLOTLY_CFG);
+
+    document.getElementById('tblTitle').innerText = 'Chi tiết vượt định mức theo đầu xe và kỳ lương';
+    const note = document.getElementById('tblNote');
+    note.style.display = 'block';
+    note.innerText = 'Dầu vượt = tổng phần tiêu thụ trên (ĐM + 2 L/100km) của từng ngày, sau khi bù kẹt xe; ngày tiết kiệm không bù cho ngày vượt.';
+    renderStandardTable(rows, false, 'norm');
+}
 
     </script>
 </body>

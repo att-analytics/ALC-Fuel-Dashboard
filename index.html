@@ -256,6 +256,34 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
     .kpi-val { font-size: 20px; }
 }
 
+/* ===== Chi phí vận hành ===== */
+.placeholder-card .plain-list { margin: 6px 0 4px 18px; padding: 0; color: var(--ink-2, #334155); font-size: 13.5px; line-height: 1.7; }
+.inline-select { font: inherit; font-size: 14px; font-weight: 700; padding: 3px 8px; border: 1px solid var(--line-2); border-radius: 6px; margin-left: 6px; background: #fff; }
+.fp-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.fp-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; color: #475569; }
+.fp-form label.grow { flex: 1 1 200px; }
+.fp-form input, .fp-form select { padding: 8px 10px; border: 1px solid var(--line-2); border-radius: 7px; font-size: 13px; background: #fff; min-width: 120px; }
+.fp-table td, .fp-table th { white-space: nowrap; }
+.fp-table th .src-tag { font-size: 10.5px; font-weight: 600; color: #64748B; background: #EEF2F7; border-radius: 10px; padding: 1px 7px; margin-left: 4px; }
+.fp-table td.note-cell { white-space: normal; min-width: 220px; max-width: 340px; font-size: 12px; color: #64748B; }
+.fp-price { border-bottom: 1px dashed #94A3B8; font-variant-numeric: tabular-nums; }
+.fp-price.editable { cursor: pointer; }
+.fp-price.suggest { font-style: italic; color: #64748B; }
+.fp-price.internal { border-bottom-color: transparent; }
+.fp-pending { display: inline-block; font-size: 10.5px; font-weight: 700; color: #92400E; background: #FEF3C7; border-radius: 10px; padding: 1px 7px; margin-left: 6px; }
+.fp-ok-btn { margin-left: 4px; border: 1px solid var(--line-2); background: #fff; border-radius: 6px; padding: 1px 7px; cursor: pointer; font-size: 12px; }
+.fp-ok-btn:hover { background: #F0FDF4; border-color: #16A34A; }
+.fp-edit { display: inline-flex; gap: 4px; align-items: center; }
+.fp-edit input { width: 90px; padding: 3px 6px; border: 1px solid var(--line-2); border-radius: 6px; font-size: 12.5px; }
+.fp-edit button { border: 1px solid var(--line-2); background: #fff; border-radius: 6px; padding: 2px 7px; cursor: pointer; font-size: 12px; }
+.fp-chg-up { color: var(--bad, #DC2626); font-weight: 600; }
+.fp-chg-down { color: var(--good, #16A34A); font-weight: 600; }
+
+.fp-ocr { display: block; border: 1.5px dashed #9CC3DD; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; cursor: pointer; background: #F7FBFE; font-size: 13px; color: #334155; }
+.fp-ocr:hover, .fp-ocr.drag { background: #EAF4FB; border-color: #0B6FA4; }
+.fp-ocr.busy { opacity: .6; pointer-events: none; }
+.fp-dibee-ok { font-size: 10.5px; color: #15803D; margin-left: 4px; white-space: nowrap; }
+
     </style>
 </head>
 <body>
@@ -311,6 +339,16 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
                     <div class="sub-nav-item" onclick="switchTab('week_overview', this)">Tổng quan theo tuần</div>
                     <div class="sub-nav-item" onclick="switchTab('reconcile', this)">Đối soát đổ dầu</div>
                     <div class="sub-nav-item" onclick="switchTab('norm', this)">Định mức &amp; hao phí</div>
+                </div>
+            </div>
+            <div class="acc-group open" id="acc-cost">
+                <div class="acc-header" onclick="document.getElementById('acc-cost').classList.toggle('open')">
+                    <span>Chi phí vận hành</span><span class="acc-chevron">▾</span>
+                </div>
+                <div class="acc-body">
+                    <div class="sub-nav-item" onclick="switchTab('cost_salary', this)">Lương tài xế</div>
+                    <div class="sub-nav-item" onclick="switchTab('fuel_price', this)">Giá dầu thị trường</div>
+                    <div class="sub-nav-item" onclick="switchTab('cost_calc', this)">Tính cost vận chuyển</div>
                 </div>
             </div>
             <div class="single-nav-group" id="nav-admin-item" style="display:none;">
@@ -587,6 +625,77 @@ tr.total-row td { background: #F1F5F9; font-weight: 700; color: var(--ink); bord
                         <thead><tr><th>Thời điểm</th><th>Người nhập</th><th>Loại</th><th>Tên file</th><th class="num">Dòng đã ghi</th><th class="num">Trùng (bỏ qua)</th><th>Khoảng ngày</th><th>Trạng thái</th></tr></thead>
                         <tbody id="importLogBody"><tr><td colspan="8" class="txt-muted" style="text-align:center; padding:16px;">Chưa tải lịch sử.</td></tr></tbody>
                     </table>
+                </div>
+            </div>
+        </div>
+
+        <div id="cost-content-wrapper" style="display:none;">
+            <div id="panelSalary" class="cost-panel">
+                <div class="card placeholder-card">
+                    <div class="section-heading">Lương tài xế (tạm tính) – đang chuẩn bị</div>
+                    <div class="chart-note">Trang sẽ tạm tính thu nhập từng tài xế theo kỳ lương từ dữ liệu Leader (lệnh, cont, tuyến, ngày công) và lưu bảng chính sách lương chính thức để tra cứu.</div>
+                    <ul class="plain-list">
+                        <li>Cần: quy chế lương khoán đầy đủ của tài xế.</li>
+                        <li>Cần: bảng lương 2–3 tháng gần nhất để đối chiếu, khớp rồi mới đưa lên.</li>
+                    </ul>
+                </div>
+            </div>
+            <div id="panelFuel" class="cost-panel">
+                <div class="kpi-grid cols-4" id="fpKpiGrid"></div>
+                <div class="card" id="fpAdminCard" style="display:none;">
+                    <div class="card-head" style="margin-bottom:10px;">
+                        <div>
+                            <div class="section-heading">Cập nhật giá</div>
+                            <div class="chart-note" style="margin-bottom:0;" id="fpFetchNote">Giá chuẩn là <b>Petrolimex vùng 1</b>. Mỗi giờ hệ thống tự đọc: thông cáo Bộ Công Thương, <b>ảnh bảng giá trong thông cáo Petrolimex</b>, giá Saigon Petro và PV Oil. Nếu không đọc được ảnh Petrolimex, hệ thống đề xuất giá = giá trần BCT làm tròn xuống 10 đ. Giá tự lấy cần Admin kiểm tra và bấm ✓ (hoặc sửa).</div>
+                        </div>
+                        <button class="alc-btn-primary" id="fpFetchBtn" onclick="fuelFetchNow()">Lấy giá mới ngay</button>
+                    </div>
+                    <label class="fp-ocr" id="fpOcrBox" ondragover="event.preventDefault();this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="fuelOcrDrop(event)">
+                        <input type="file" id="fpOcrInput" accept="image/*,application/pdf" style="display:none;" onchange="fuelOcrFile(this)">
+                        <b>Nhập giá từ ảnh / PDF</b> <span id="fpOcrLabel">Kéo thả hoặc bấm để chọn ảnh / PDF bảng giá</span>
+                        <span class="chart-note" style="display:block;margin:2px 0 0;">Hệ thống đọc ảnh và điền sẵn ngày, giờ, nguồn, giá vào ô bên dưới – kiểm tra rồi bấm "Thêm giá".</span>
+                    </label>
+                    <div class="fp-form">
+                        <label>Ngày hiệu lực<input type="date" id="fpDate"></label>
+                        <label>Giờ<input type="time" id="fpTime" value="15:00"></label>
+                        <label>Nguồn<select id="fpSrc"></select></label>
+                        <label>Giá DO 0,05S (đ/lít)<input type="number" id="fpPrice" min="5000" max="100000" step="1" placeholder="VD 26820"></label>
+                        <label class="grow">Link nguồn<input type="url" id="fpLink" placeholder="https://..."></label>
+                        <label class="grow">Ghi chú<input type="text" id="fpNote" maxlength="300"></label>
+                        <button class="tool-btn" onclick="fuelSaveNew()">Thêm giá</button>
+                    </div>
+                    <div class="chart-note" id="fpMsg" style="margin:8px 0 0; display:none;"></div>
+                </div>
+                <div class="card">
+                    <div class="card-head">
+                        <div>
+                            <div class="section-heading">Biến động giá dầu DO 0,05S (vùng 1)</div>
+                            <div class="chart-note" style="margin-bottom:0;">Đường đậm: giá chuẩn Petrolimex vùng 1; chấm: giá trần Bộ Công Thương; đứt: giá ALC thực trả tại trạm (Dibee). Bấm vào tên trong chú thích để ẩn/hiện.</div>
+                        </div>
+                    </div>
+                    <div id="fpChart" class="chart-box" style="height:340px;"></div>
+                </div>
+                <div class="card">
+                    <div class="card-head">
+                        <div class="section-heading">Các kỳ giá năm <select id="fpYear" class="inline-select" onchange="renderFuelPricePage()"></select></div>
+                        <div class="chart-note" style="margin-bottom:0;" id="fpTableHint"></div>
+                    </div>
+                    <div class="table-scroll-box" style="max-height:560px;">
+                        <table class="fp-table"><thead id="fpHead"></thead><tbody id="fpBody"></tbody></table>
+                    </div>
+                </div>
+            </div>
+            <div id="panelCost" class="cost-panel">
+                <div class="card placeholder-card">
+                    <div class="section-heading">Tính cost vận chuyển – đang chuẩn bị</div>
+                    <div class="chart-note">Nhập điểm lấy – điểm trả (hoặc số km), dòng xe, loại cont, hàng/rỗng, tải trọng; trang tự cộng các khoản chi phí:</div>
+                    <ul class="plain-list">
+                        <li><b>Dầu</b> = km × định mức dòng xe × giá dầu mới nhất ở trang "Giá dầu thị trường".</li>
+                        <li><b>Lương tài xế</b> theo chính sách ở trang "Lương tài xế" (tạm thời nhập tay đơn giá/chuyến).</li>
+                        <li><b>BOT</b> theo bảng phí tuyến; <b>hao mòn, bảo dưỡng, lốp, khấu hao, quản lý</b> theo định mức đ/km hoặc đ/chuyến.</li>
+                        <li>Quãng đường: bảng cự ly nội bộ, tuyến mới tra bằng Google Maps (qua Apps Script) rồi lưu lại.</li>
+                    </ul>
+                    <div class="chart-note">Cần: danh sách các khoản chi phí và cách tính hiện dùng, bảng phí BOT theo tuyến (nếu có).</div>
                 </div>
             </div>
         </div>
@@ -883,6 +992,9 @@ const TAB_META = {
     year_overview: ["Nhiên liệu · Đội 1", "Tổng quan theo tháng", "Quãng đường, tiêu thụ và suất tiêu hao nhiên liệu theo kỳ lương."],
     week_overview: ["Nhiên liệu · Đội 1", "Tổng quan theo tuần", "Quãng đường, tiêu thụ và suất tiêu hao nhiên liệu theo tuần."],
     reconcile: ["Nhiên liệu · Đội 1", "Đối soát đổ dầu", "Đối chiếu từng lần đổ dầu thanh toán qua Dibee với lượng dầu cảm biến GPS ghi nhận vào bình, theo từng xe từng ngày."],
+    cost_salary: ["Chi phí vận hành", "Lương tài xế", "Tạm tính thu nhập tài xế theo chính sách lương và dữ liệu lệnh Leader (đang chuẩn bị)."],
+    fuel_price: ["Chi phí vận hành", "Giá dầu thị trường", "Giá DO 0,05S theo giá chuẩn Petrolimex vùng 1, đối chiếu giá trần Bộ Công Thương, các nhà bán lẻ và giá ALC thực trả tại trạm (Dibee)."],
+    cost_calc: ["Chi phí vận hành", "Tính cost vận chuyển", "Ước tính chi phí một chuyến: dầu, lương, BOT, hao mòn và chi phí khác (đang chuẩn bị)."],
     norm: ["Nhiên liệu · Đội 1", "Định mức & hao phí", "Lượng dầu tiêu thụ vượt định mức (phần trên ĐM + 2 L/100km, tính theo ngày, đã bù kẹt xe) và chi phí quy đổi theo giá dầu bình quân của kỳ."],
     data_import: ["Hệ thống", "Cập nhật dữ liệu", "Tải file xuất từ hệ thống GPS / Dibee / Leader; trang tự chuẩn hoá định dạng, ghi vào Google Sheet và cập nhật dashboard."],
     data_check: ["Hệ thống", "Kiểm tra dữ liệu", "Các vấn đề phát hiện khi đọc Google Sheet ở lần cập nhật gần nhất: dữ liệu thiếu, biển số lạ, số liệu bất thường, nguồn chậm cập nhật."],
@@ -918,7 +1030,7 @@ const KPI_LABELS = {
     ]
 };
 
-let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [], FUEL_TX = [], PRICE_BY_KY = {};
+let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [], FUEL_TX = [], PRICE_BY_KY = {}, STATION_PRICE_EVENTS = [];
 let CURRENT_FILTERED_LEADER_ORDERS = [], CURRENT_STD_TABLE_DATA = [], CURRENT_STD_IS_WEEK = false, CURRENT_STD_MODE = 'fuel';
 let TEAM1_VEHICLES = [], ALL_VEHICLES = [], VEH_TEAM_MAP = {}, MAX_DATE_GPS = "N/A";
 let DATA_CHECKS = { sources: [], items: [], counts: {} }, CHECK_FILTER = 'all';
@@ -1059,6 +1171,7 @@ function hydrateDashboardPayload(payload) {
     LEADER_ORDERS = payload.LEADER_ORDERS || [];
     FUEL_TX = payload.FUEL_TX || [];
     PRICE_BY_KY = payload.PRICE_BY_KY || {};
+    STATION_PRICE_EVENTS = payload.STATION_PRICE_EVENTS || [];
 
     TEAM1_VEHICLES = payload.TEAM1_VEHICLES || [];
     ALL_VEHICLES = payload.ALL_VEHICLES || [];
@@ -1568,6 +1681,14 @@ function switchTab(tabName, el) {
     document.getElementById('pageDesc').innerText = desc;
 
     document.getElementById('check-content-wrapper').style.display = tabName === 'data_check' ? 'block' : 'none';
+    const COST_TABS = { cost_salary: 'panelSalary', fuel_price: 'panelFuel', cost_calc: 'panelCost' };
+    document.getElementById('cost-content-wrapper').style.display = COST_TABS[tabName] ? 'block' : 'none';
+    if (COST_TABS[tabName]) {
+        ['report-content-wrapper', 'admin-content-wrapper', 'import-content-wrapper'].forEach(id => { document.getElementById(id).style.display = 'none'; });
+        Object.values(COST_TABS).forEach(id => { document.getElementById(id).style.display = id === COST_TABS[tabName] ? 'block' : 'none'; });
+        if (tabName === 'fuel_price') openFuelPricePage();
+        return;
+    }
     document.getElementById('import-content-wrapper').style.display = tabName === 'data_import' ? 'block' : 'none';
     if (tabName === 'data_import') {
         document.getElementById('report-content-wrapper').style.display = 'none';
@@ -2762,7 +2883,10 @@ function renderNormTab(rows, selP, prevRows, prevLabel) {
     else chips.push({ level: 'good', tag: 'Định mức', html: 'Không có xe vượt định mức + 2 L/100km' });
     const missing = selP.filter(k => !PRICE_BY_KY[k]);
     if (missing.length) chips.push({ level: 'warn', tag: 'Thiếu giá dầu', html: `Kỳ ${missing.join(', ')} chưa có giao dịch Dibee nên chưa quy đổi được chi phí` });
-    chips.push({ level: 'info', tag: 'Cách tính', html: 'Giá dầu bình quân kỳ = tổng giá các đợt giá trong kỳ / số đợt giá (giá lấy từ giao dịch Dibee)' });
+    const dibeeKys = selP.filter(k => PRICE_BY_KY[k] && PRICE_BY_KY[k].nguon !== 'petrolimex');
+    const pendKys = selP.filter(k => PRICE_BY_KY[k] && PRICE_BY_KY[k].chua_xac_nhan);
+    if (pendKys.length) chips.push({ level: 'warn', tag: 'Giá chưa xác nhận', html: `Kỳ ${pendKys.join(', ')} có giá Petrolimex chưa được Admin xác nhận ở trang Giá dầu thị trường` });
+    chips.push({ level: 'info', tag: 'Cách tính', html: 'Giá dầu BQ kỳ = tổng giá các đợt giá <b>Petrolimex vùng 1</b> có hiệu lực trong kỳ / số đợt' + (dibeeKys.length ? `; ${dibeeKys.length > 4 ? dibeeKys.length + ' kỳ' : 'kỳ ' + dibeeKys.join(', ')} chưa có đủ bảng giá Petrolimex nên tạm dùng giá thực trả tại trạm (Dibee)` : '') });
     renderInsights(chips);
 
     document.getElementById('chart1Title').innerText = 'Xe có chi phí vượt định mức cao nhất';
@@ -2796,6 +2920,316 @@ function renderNormTab(rows, selP, prevRows, prevLabel) {
     note.style.display = 'block';
     note.innerText = 'Dầu vượt = tổng phần tiêu thụ trên (ĐM + 2 L/100km) của từng ngày, sau khi bù kẹt xe; ngày tiết kiệm không bù cho ngày vượt.';
     renderStandardTable(rows, false, 'norm');
+}
+
+// ================= GIÁ DẦU THỊ TRƯỜNG =================
+const FUEL_OFFICIAL_ORDER = ['Petrolimex', 'Bộ Công Thương', 'Saigon Petro', 'PV Oil', 'Khác'];
+const FUEL_STD = 'Petrolimex';               // giá chuẩn
+const FUEL_ANCHORS = ['Petrolimex', 'Bộ Công Thương'];   // nguồn mở một kỳ giá
+const FUEL_COLORS = { 'Petrolimex': '#0B6FA4', 'Bộ Công Thương': '#64748B', 'Saigon Petro': '#1baf7a', 'PV Oil': '#6250d6', 'Khác': '#94A3B8' };
+const FUEL_STATION_COLORS = ['#eda100', '#e87ba4', '#008300', '#e34948'];
+let FUEL_PRICE_ROWS = [], FUEL_SOURCES = FUEL_OFFICIAL_ORDER.slice(), FUEL_LOADED = false, FUEL_EDIT_ID = null;
+
+const fpTime = s => { const m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})(?: (\d{2}):(\d{2}))?/); return m ? new Date(+m[1], +m[2] - 1, +m[3], +(m[4] || 0), +(m[5] || 0)) : null; };
+const fpDmy = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+const fpHm = d => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const fpIsAdmin = () => CURRENT_SESSION_AUTH?.role === 'Admin';
+
+async function openFuelPricePage() {
+    document.getElementById('fpAdminCard').style.display = fpIsAdmin() ? 'block' : 'none';
+    const sel = document.getElementById('fpSrc');
+    if (!sel.options.length) {
+        const order = FUEL_OFFICIAL_ORDER.filter(x => FUEL_SOURCES.includes(x)).concat(FUEL_SOURCES.filter(x => !FUEL_OFFICIAL_ORDER.includes(x)));
+        sel.innerHTML = order.map(x => `<option>${escapeHtml(x)}</option>`).join('');
+    }
+    if (!document.getElementById('fpDate').value) {
+        const d = new Date(); document.getElementById('fpDate').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+    renderFuelPricePage();
+    if (!FUEL_LOADED) await loadFuelPrices();
+}
+
+async function loadFuelPrices() {
+    const hint = document.getElementById('fpTableHint');
+    hint.innerText = 'Đang tải bảng giá…';
+    try {
+        const res = await callApi('fuel_prices');
+        if (res && res.ok) {
+            FUEL_PRICE_ROWS = res.rows || [];
+            if (Array.isArray(res.sources) && res.sources.length) FUEL_SOURCES = res.sources;
+            FUEL_LOADED = true;
+            hint.innerText = '';
+        } else hint.innerText = (res && res.message) || 'Không tải được bảng giá công bố.';
+    } catch (e) {
+        hint.innerText = 'Không kết nối được máy chủ – đang hiển thị giá nội bộ từ Dibee.';
+    }
+    renderFuelPricePage();
+}
+
+function fuelMsg(text, ok) {
+    const el = document.getElementById('fpMsg');
+    el.style.display = text ? 'block' : 'none';
+    el.style.color = ok ? '#15803D' : '#B91C1C';
+    el.innerText = text || '';
+}
+
+async function fuelCall(action, data, okText) {
+    try {
+        const res = await callApi(action, data);
+        if (res && res.ok) {
+            FUEL_PRICE_ROWS = res.rows || FUEL_PRICE_ROWS;
+            FUEL_EDIT_ID = null;
+            fuelMsg(res.message || okText || '', true);
+            if (res.errors && res.errors.length) fuelMsg((res.message || '') + ' Lưu ý: ' + res.errors.join(' · '), !!(res.added && res.added.length));
+            renderFuelPricePage();
+            return true;
+        }
+        fuelMsg((res && res.message) || 'Không thực hiện được.', false);
+    } catch (e) { fuelMsg('Lỗi kết nối: ' + e, false); }
+    return false;
+}
+
+async function fuelFetchNow() {
+    const btn = document.getElementById('fpFetchBtn');
+    btn.disabled = true; btn.innerText = 'Đang lấy giá…';
+    await fuelCall('fuel_price_fetch', {});
+    btn.disabled = false; btn.innerText = 'Lấy giá mới ngay';
+}
+
+function fuelSaveNew() {
+    const date = document.getElementById('fpDate').value, time = document.getElementById('fpTime').value || '00:00';
+    const price = Number(document.getElementById('fpPrice').value);
+    if (!date || !(price > 5000)) { fuelMsg('Nhập ngày hiệu lực và giá (đ/lít).', false); return; }
+    fuelCall('fuel_price_save', {
+        time: `${date} ${time}`, src: document.getElementById('fpSrc').value, price,
+        link: document.getElementById('fpLink').value.trim(), note: document.getElementById('fpNote').value.trim()
+    }, 'Đã thêm giá.').then(ok => { if (ok) { document.getElementById('fpPrice').value = ''; document.getElementById('fpNote').value = ''; document.getElementById('fpLink').value = ''; } });
+}
+
+function fuelConfirm(id) { fuelCall('fuel_price_confirm', { id }, 'Đã xác nhận.'); }
+function fuelDelete(id) { fuelCall('fuel_price_delete', { id }, 'Đã xoá.'); }
+function fuelStartEdit(id) { if (!fpIsAdmin()) return; FUEL_EDIT_ID = id; renderFuelPriceTable(); const inp = document.getElementById('fpEditInput'); if (inp) inp.focus(); }
+function fuelCancelEdit() { FUEL_EDIT_ID = null; renderFuelPriceTable(); }
+function fuelSaveEdit(id) {
+    const r = FUEL_PRICE_ROWS.find(x => x.id === id);
+    const price = Number(document.getElementById('fpEditInput').value);
+    if (!r || !(price > 5000)) { fuelMsg('Giá không hợp lệ.', false); return; }
+    fuelCall('fuel_price_save', { id, time: r.t, src: r.src, price, link: r.link, note: r.note }, 'Đã lưu giá.');
+}
+
+const FUEL_STATION_SOURCES = ['Vân Trúc', 'Hoàng Nguyên'];   // trạm nội bộ: có thông báo giá của trạm + giá thực trả (Dibee)
+function fuelStations() {
+    const cnt = {};
+    STATION_PRICE_EVENTS.forEach(e => { cnt[e.tram] = (cnt[e.tram] || 0) + (e.n || 1); });
+    FUEL_PRICE_ROWS.forEach(r => { if (FUEL_STATION_SOURCES.includes(r.src)) cnt[r.src] = (cnt[r.src] || 0) + 1; });
+    return Object.keys(cnt).sort((a, b) => cnt[b] - cnt[a]);
+}
+
+/** Gom các mức giá thành từng kỳ: mỗi giá BCT là một kỳ; giá nguồn khác trong 36 giờ sau kỳ đó được xếp cùng dòng. */
+function buildFuelPeriods(year) {
+    const stations = fuelStations();
+    const ev = [];
+    FUEL_PRICE_ROWS.forEach(r => { const d = fpTime(r.t); if (d) ev.push({ d, col: FUEL_STATION_SOURCES.includes(r.src) ? 'st:' + r.src : r.src, price: r.price, row: r }); });
+    STATION_PRICE_EVENTS.forEach(e => { const d = fpTime(e.t); if (d) ev.push({ d, col: 'st:' + e.tram, price: e.gia, st: e }); });
+    ev.sort((a, b) => a.d - b.d);
+    const periods = [];
+    const anchorFor = e => {
+        let best = null;
+        periods.forEach(p => {
+            const dt = e.d - p.d;
+            if (dt < 0 || dt > 36 * 3600000 || p.cells[e.col]) return;
+            if (!best || (p.anchor && !best.anchor) || (p.anchor === best.anchor && p.d > best.d)) best = p;
+        });
+        return best;
+    };
+    ev.forEach(e => {
+        if (e.st) {
+            const notice = periods.find(p => p.cells[e.col] && p.cells[e.col].row && p.cells[e.col].price === e.price && e.d - p.d >= -6 * 3600000 && e.d - p.d <= 48 * 3600000);
+            if (notice) { notice.cells[e.col].dibee = e.st; return; }
+        }
+        const isAnchor = FUEL_ANCHORS.includes(e.col);
+        let p = isAnchor ? null : anchorFor(e);
+        if (isAnchor) {
+            p = periods.find(x => !x.cells[e.col] && Math.abs(x.d - e.d) < 60000);
+            if (!p) { p = { d: e.d, cells: {}, anchor: true }; periods.push(p); }
+            p.anchor = true; p.d = e.d;
+            // giá nguồn khác đã xếp vào dòng riêng trong vòng 6 giờ TRƯỚC giờ BCT (VD Petrolimex 14:42) -> gộp vào kỳ này
+            periods.filter(x => x !== p && !x.anchor && x.d <= e.d && e.d - x.d < 6 * 3600000).forEach(x => {
+                Object.entries(x.cells).forEach(([k, v]) => { if (!p.cells[k]) { p.cells[k] = v; delete x.cells[k]; } });
+            });
+        } else if (!p) { p = { d: e.d, cells: {}, anchor: false }; periods.push(p); }
+        if (!p.cells[e.col]) p.cells[e.col] = e;
+        periods.sort((a, b) => a.d - b.d);
+    });
+    const all = periods.filter(p => Object.keys(p.cells).length);
+    // % tăng/giảm theo giá chuẩn Petrolimex
+    let prevStd = null;
+    all.forEach(p => { const b = p.cells[FUEL_STD]; if (b) { p.stdChg = prevStd && b.price !== prevStd ? (b.price - prevStd) / prevStd * 100 : (prevStd ? 0 : null); prevStd = b.price; } });
+    const officialCols = FUEL_OFFICIAL_ORDER.filter(src => src === 'Bộ Công Thương' || src === 'Petrolimex' || src === 'Saigon Petro' || FUEL_PRICE_ROWS.some(r => r.src === src));
+    return { periods: all.filter(p => p.d.getFullYear() === year).reverse(), allPeriods: all, officialCols, stations };
+}
+
+function renderFuelPricePage() {
+    const years = new Set([new Date().getFullYear()]);
+    FUEL_PRICE_ROWS.forEach(r => { const d = fpTime(r.t); if (d) years.add(d.getFullYear()); });
+    STATION_PRICE_EVENTS.forEach(e => { const d = fpTime(e.t); if (d) years.add(d.getFullYear()); });
+    const ysel = document.getElementById('fpYear');
+    const cur = Number(ysel.value) || Math.max(...years);
+    ysel.innerHTML = [...years].sort((a, b) => b - a).map(y => `<option ${y === cur ? 'selected' : ''}>${y}</option>`).join('');
+    renderFuelKpis(cur);
+    renderFuelChart(cur);
+    renderFuelPriceTable();
+}
+
+function latestOf(rows) { return rows.slice().sort((a, b) => fpTime(b.t) - fpTime(a.t)); }
+
+function renderFuelKpis(year) {
+    const std = latestOf(FUEL_PRICE_ROWS.filter(r => r.src === FUEL_STD));
+    const bct = latestOf(FUEL_PRICE_ROWS.filter(r => r.src === 'Bộ Công Thương'));
+    // các kỳ đổi giá thật của Petrolimex (bỏ dòng trùng giá liền nhau)
+    const chron = std.slice().reverse().filter((r, i, arr) => i === 0 || r.price !== arr[i - 1].price);
+    const changes = chron.slice().reverse();
+    const main = fuelStations()[0];
+    const stEv = STATION_PRICE_EVENTS.filter(e => e.tram === main).sort((a, b) => fpTime(b.t) - fpTime(a.t));
+    const stdYear = chron.filter(r => fpTime(r.t).getFullYear() === year);
+    const avgYear = stdYear.length ? stdYear.reduce((a, r) => a + r.price, 0) / stdYear.length : 0;
+    const card = (title, val, unit, sub, st) => `<div class="kpi-card${st ? ' st-' + st : ''}"><div class="kpi-top-row"><div class="kpi-title">${title}</div></div><div class="kpi-val">${val}${unit ? `<small>${unit}</small>` : ''}</div><div class="kpi-sub">${sub}</div></div>`;
+    const html = [];
+    if (std[0]) {
+        const d = fpTime(std[0].t), pending = std[0].status !== 'Đã xác nhận';
+        const bctNow = bct.find(r => Math.abs(fpTime(r.t) - d) < 36 * 3600000);
+        html.push(card('Giá Petrolimex vùng 1 hiện hành', formatNum(std[0].price), 'đ/lít',
+            `Từ ${fpHm(d)} ${fpDmy(d)}${pending ? ' · <b>chưa xác nhận</b>' : ''}${bctNow ? ` · trần BCT ${formatNum(bctNow.price)}` : ''}`, pending ? 'warn' : ''));
+        if (changes[1]) {
+            const diff = changes[0].price - changes[1].price, pct = diff / changes[1].price * 100;
+            html.push(card('Thay đổi kỳ gần nhất', (diff > 0 ? '+' : '−') + formatNum(Math.abs(diff)), 'đ/lít', `${diff > 0 ? '▲' : '▼'} ${fmt1(Math.abs(pct))}% so với kỳ ${fpDmy(fpTime(changes[1].t))}`, diff > 0 ? 'bad' : 'good'));
+        } else html.push(card('Thay đổi kỳ gần nhất', '–', '', 'Chưa có kỳ trước để so sánh', ''));
+    } else {
+        html.push(card('Giá Petrolimex vùng 1 hiện hành', '–', '', FUEL_LOADED ? 'Chưa có dữ liệu – Admin bấm "Lấy giá mới ngay" hoặc nhập tay' : 'Đang tải…', ''));
+        html.push(card('Thay đổi kỳ gần nhất', '–', '', '', ''));
+    }
+    if (stEv[0]) {
+        const ref = std[0] ? std[0].price : null;
+        const gap = ref ? stEv[0].gia - ref : null;
+        html.push(card(`Giá ALC đang trả · ${escapeHtml(main)}`, formatNum(stEv[0].gia), 'đ/lít', `Từ ${fpDmy(fpTime(stEv[0].t))} (Dibee)${gap !== null ? ` · ${gap === 0 ? 'bằng' : (gap > 0 ? 'cao hơn ' : 'thấp hơn ') + formatNum(Math.abs(gap)) + ' đ so với'} Petrolimex` : ''}`, gap > 0 ? 'warn' : ''));
+    } else html.push(card('Giá ALC đang trả', '–', '', 'Chưa có giao dịch Dibee', ''));
+    html.push(card(`Số kỳ đổi giá năm ${year}`, String(stdYear.length), 'kỳ', avgYear ? `Giá Petrolimex bình quân các kỳ: ${formatNum(avgYear)} đ/lít` : 'Theo bảng giá Petrolimex đã có', ''));
+    document.getElementById('fpKpiGrid').innerHTML = html.join('');
+}
+
+function renderFuelChart(year) {
+    const traces = [];
+    const now = new Date();
+    const end = year === now.getFullYear() ? now : new Date(year, 11, 31, 23, 59);
+    const start = new Date(year, 0, 1);
+    const stepXY = pts => {
+        pts = pts.filter(p => p.d <= end).sort((a, b) => a.d - b.d);
+        const before = pts.filter(p => p.d < start).pop();
+        const inYear = pts.filter(p => p.d >= start);
+        const seq = (before ? [{ d: start, v: before.v }] : []).concat(inYear);
+        if (!seq.length) return null;
+        seq.push({ d: end, v: seq[seq.length - 1].v });
+        return { x: seq.map(p => p.d), y: seq.map(p => p.v) };
+    };
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')} ${fpHm(d)}`;
+    FUEL_OFFICIAL_ORDER.forEach(src => {
+        const xy = stepXY(FUEL_PRICE_ROWS.filter(r => r.src === src).map(r => ({ d: fpTime(r.t), v: r.price })));
+        if (!xy) return;
+        const isStd = src === FUEL_STD, isCeil = src === 'Bộ Công Thương';
+        traces.push({ x: xy.x.map(iso), y: xy.y, name: isStd ? `${src} vùng 1 (chuẩn)` : (isCeil ? 'Trần Bộ Công Thương' : src), type: 'scatter', mode: 'lines',
+            line: { shape: 'hv', width: isStd ? 3 : 1.5, dash: isCeil ? 'dot' : 'solid', color: FUEL_COLORS[src] }, hovertemplate: `${src}: <b>%{y:,.0f} đ</b><extra></extra>` });
+    });
+    fuelStations().forEach((st, i) => {
+        const xy = stepXY(STATION_PRICE_EVENTS.filter(e => e.tram === st).map(e => ({ d: fpTime(e.t), v: e.gia })));
+        if (!xy) return;
+        traces.push({ x: xy.x.map(iso), y: xy.y, name: `${st} (Dibee)`, type: 'scatter', mode: 'lines', line: { shape: 'hv', width: 2, dash: 'dash', color: FUEL_STATION_COLORS[i % FUEL_STATION_COLORS.length] }, hovertemplate: `${escapeHtml(st)}: <b>%{y:,.0f} đ</b><extra></extra>` });
+    });
+    if (!traces.length) { emptyChart('fpChart', 'Chưa có dữ liệu giá cho năm này'); return; }
+    Plotly.react('fpChart', traces, baseLayout({
+        showlegend: true, legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 12 } }, hovermode: 'x unified',
+        margin: { t: 30, l: 60, r: 16, b: 36 },
+        xaxis: { type: 'date', tickformat: '%d/%m', range: [iso(start), iso(end)] },
+        yaxis: { title: { text: 'đ/lít', font: { size: 11, color: '#64748B' } }, tickformat: ',.0f' }
+    }), PLOTLY_CFG);
+}
+
+function renderFuelPriceTable() {
+    const year = Number(document.getElementById('fpYear').value) || new Date().getFullYear();
+    const { periods, officialCols, stations } = buildFuelPeriods(year);
+    const admin = fpIsAdmin();
+    document.getElementById('fpHead').innerHTML = '<tr><th>Ngày</th><th>Giờ</th>'
+        + officialCols.map(c => `<th class="num">${escapeHtml(c)}${c === FUEL_STD ? '<span class="src-tag">Chuẩn · vùng 1</span>' : (c === 'Bộ Công Thương' ? '<span class="src-tag">Giá trần</span>' : '')}</th>`).join('')
+        + stations.map(s => `<th class="num">${escapeHtml(s)}<span class="src-tag">Nội bộ</span></th>`).join('')
+        + '<th class="num">Petrolimex tăng/giảm</th><th>Ghi chú</th></tr>';
+    const officialCell = e => {
+        if (!e) return '<td class="num txt-muted">–</td>';
+        const r = e.row, pending = r.status !== 'Đã xác nhận', suggest = String(r.how || '').indexOf('Đề xuất') === 0;
+        if (FUEL_EDIT_ID === r.id) {
+            return `<td class="num"><span class="fp-edit"><input id="fpEditInput" type="number" value="${r.price}" onkeydown="if(event.key==='Enter')fuelSaveEdit('${r.id}');if(event.key==='Escape')fuelCancelEdit();"><button onclick="fuelSaveEdit('${r.id}')">Lưu</button><button onclick="fuelCancelEdit()">Huỷ</button><button title="Xoá giá này" onclick="fuelDelete('${r.id}')">Xoá</button></span></td>`;
+        }
+        const title = `${r.how || ''}${r.by ? ' · ' + r.by : ''}${r.at ? ' · ' + r.at : ''}`;
+        return `<td class="num"><span class="fp-price${admin ? ' editable' : ''}${suggest && pending ? ' suggest' : ''}" title="${escapeHtml(title)}" ${admin ? `onclick="fuelStartEdit('${r.id}')"` : ''}>${formatNum(r.price)}</span>`
+            + (pending ? `<span class="fp-pending">${suggest ? 'Đề xuất' : 'Chưa KT'}</span>${admin ? `<button class="fp-ok-btn" title="Xác nhận giá đúng" onclick="fuelConfirm('${r.id}')">✓</button>` : ''}` : '') + '</td>';
+    };
+    const stationCell = e => {
+        if (!e) return '<td class="num txt-muted">–</td>';
+        if (e.row) {   // thông báo giá của trạm (nhập/đọc ảnh) – có thể kèm xác nhận khớp với Dibee
+            const html = officialCell(e);
+            return e.dibee ? html.replace('</td>', ` <span class="fp-dibee-ok" title="Khớp giá thực trả trên Dibee (${e.dibee.n || 0} GD từ ${escapeHtml(e.dibee.t)})">✓ Dibee</span></td>`) : html;
+        }
+        return `<td class="num"><span class="fp-price internal" title="Suy từ giao dịch Dibee · ${e.st.n || 0} GD ở giá này · GD đầu tiên ${escapeHtml(e.st.t)}">${formatNum(e.price)}</span><span class="src-tag" style="margin-left:4px;">Dibee</span></td>`;
+    };
+    const rows = periods.map(p => {
+        const notes = [], links = [];
+        Object.values(p.cells).forEach(e => { if (e.row) { if (e.row.note) notes.push(e.row.note); if (e.row.link) links.push(e.row.link); } });
+        const chg = p.stdChg === null || p.stdChg === undefined ? '' : (p.stdChg === 0 ? '<span class="txt-muted">giữ nguyên</span>' : `<span class="${p.stdChg > 0 ? 'fp-chg-up' : 'fp-chg-down'}">${p.stdChg > 0 ? '▲' : '▼'} ${fmt1(Math.abs(p.stdChg))}%</span>`);
+        const note = [...new Set(notes)].slice(0, 2).map(escapeHtml).join(' · ') + (links.length ? ` <a href="${escapeHtml(links[0])}" target="_blank" rel="noopener">Nguồn ↗</a>` : '');
+        return `<tr><td>${fpDmy(p.d)}</td><td>${fpHm(p.d)}</td>` + officialCols.map(c => officialCell(p.cells[c])).join('')
+            + stations.map(s => stationCell(p.cells['st:' + s])).join('') + `<td class="num">${chg}</td><td class="note-cell">${note || (Object.keys(p.cells).every(k => k.startsWith('st:')) ? 'Đổi giá tại trạm (Dibee)' : '')}</td></tr>`;
+    });
+    const cols = 4 + officialCols.length + stations.length;
+    document.getElementById('fpBody').innerHTML = rows.join('') || `<tr><td colspan="${cols}" class="txt-muted" style="text-align:center; padding:16px;">Chưa có giá nào trong năm ${year}.</td></tr>`;
+    const pend = FUEL_PRICE_ROWS.filter(r => r.status !== 'Đã xác nhận').length;
+    if (FUEL_LOADED) document.getElementById('fpTableHint').innerText = admin
+        ? (pend ? `${pend} giá chờ xác nhận ✓ · bấm vào giá để sửa` : 'Bấm vào giá để sửa')
+        : 'Giá "Đề xuất"/"Chưa KT" chưa được Admin xác nhận';
+}
+
+
+// ---- Nhập giá từ ảnh / PDF (Admin) ----
+function fuelOcrFile(input) {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if (!file) return;
+    if (file.size > 6 * 1024 * 1024) { fuelMsg('Ảnh quá lớn (tối đa 6 MB).', false); return; }
+    const box = document.getElementById('fpOcrBox');
+    box.classList.add('busy');
+    document.getElementById('fpOcrLabel').innerText = `Đang đọc "${file.name}"…`;
+    const reader = new FileReader();
+    reader.onload = async () => {
+        try {
+            const data = String(reader.result).split(',')[1];
+            const res = await callApi('fuel_price_ocr', { name: file.name, mime: file.type || 'image/png', data });
+            if (res && res.ok) {
+                const g = res.guess || {};
+                if (g.time) { const [d, t] = g.time.split(' '); document.getElementById('fpDate').value = d; document.getElementById('fpTime').value = t; }
+                if (g.price) document.getElementById('fpPrice').value = g.price;
+                const sel = document.getElementById('fpSrc');
+                if (g.src && [...sel.options].some(o => o.value === g.src)) sel.value = g.src;
+                document.getElementById('fpNote').value = `Nhập từ ảnh "${file.name}"`;
+                fuelMsg((res.message || '') + (g.candidates && g.candidates.length > 1 ? ` (các số đọc được trên dòng DO 0,05S: ${g.candidates.map(formatNum).join(' / ')})` : ''), !!g.price);
+            } else fuelMsg((res && res.message) || 'Không đọc được ảnh.', false);
+        } catch (e) { fuelMsg('Lỗi đọc ảnh: ' + e, false); }
+        box.classList.remove('busy');
+        document.getElementById('fpOcrLabel').innerText = 'Kéo thả hoặc bấm để chọn ảnh / PDF bảng giá';
+    };
+    reader.readAsDataURL(file);
+}
+function fuelOcrDrop(ev) {
+    ev.preventDefault();
+    document.getElementById('fpOcrBox').classList.remove('drag');
+    const f = ev.dataTransfer.files;
+    if (f && f.length) { const inp = document.getElementById('fpOcrInput'); const dt = new DataTransfer(); dt.items.add(f[0]); inp.files = dt.files; fuelOcrFile(inp); }
 }
 
     </script>

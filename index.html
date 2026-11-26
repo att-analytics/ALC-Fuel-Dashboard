@@ -400,6 +400,11 @@ body.exec-printing .exec-sec3:not(.month-mode) .exec-chart { height: 150px; }
 
 #execTeamTable td:first-child { white-space: nowrap; }
 
+/* Hàng so sánh theo tháng luôn ở trên, rồi chú thích, rồi hàng tuần / từng ngày */
+.exec-sec3 .exec-row-b { order: 1; }
+.exec-sec3 .exec-foot-note { order: 2; margin-top: -4px; }
+.exec-sec3 .exec-row-a { order: 3; }
+
     </style>
 </head>
 <body>
@@ -3923,7 +3928,7 @@ function renderExecReport() {
         hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont<extra></extra>'
     }];
     if (lyv.some(v => v > 0)) traces.push({ x: traces[0].x, y: lyv, type: 'scatter', mode: 'lines+markers', name: 'Cùng kỳ năm trước', line: { color: '#64748B', width: 1.5, dash: 'dot' }, marker: { size: 6 }, hovertemplate: 'Năm trước · %{x}: <b>%{y:,.0f}</b> cont<extra></extra>' });
-    document.getElementById('execTrendTitle').innerText = `3. Sản lượng cont ${nT} ${unitP} gần nhất`;
+    document.getElementById('execTrendTitle').innerText = `Sản lượng cont ${nT} ${unitP} gần nhất`;
     Plotly.react('chartExecTrend', traces, baseLayout({ margin: { t: 24, l: 44, r: 10, b: 30 }, showlegend: traces.length > 1, legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 11 } }, yaxis: { range: [0, Math.max(...tv, ...lyv, 1) * 1.28] } }), PLOTLY_CFG);
 
     // Biểu đồ từng ngày: kỳ đang chọn (cột) và kỳ trước (đường) theo ngày thứ N
@@ -3931,11 +3936,14 @@ function renderExecReport() {
     const dc = daily(key, cur).slice(0, cutoff + 1), dp = daily(prevK, slice(prevK, null));
     const wd = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     const xl = Array.from({ length: len }, (_, i) => { const d = new Date(start.getTime() + i * EXEC_DAY); return mode === 'week' ? `${wd[d.getDay()]} ${dShort(d)}` : dShort(d); });
+    // Hai cột sát nhau theo ngày thứ N: kỳ trước (xanh nhạt) | kỳ đang xem (xanh đậm)
+    const dpL = dp.slice(0, len), prevDates = dpL.map((_, i) => dShort(new Date(execStart(mode, prevK).getTime() + i * EXEC_DAY)));
+    const lblTxt = arr => mode === 'week' ? arr.map(v => v ? formatNum(Math.round(v)) : '') : undefined;
     Plotly.react('chartExecDaily', [
-        { x: xl.slice(0, dc.length), y: dc, type: 'bar', name: execShort(mode, key), marker: { color: C.s1 }, text: mode === 'week' ? dc.map(v => v ? formatNum(Math.round(v)) : '') : undefined, textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false, hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont<extra></extra>' },
-        { x: xl.slice(0, Math.min(len, dp.length)), y: dp.slice(0, len), type: 'scatter', mode: 'lines+markers', name: execShort(mode, prevK), line: { color: '#94A3B8', width: 1.5 }, marker: { size: 5 }, customdata: dp.slice(0, len).map((_, i) => dShort(new Date(execStart(mode, prevK).getTime() + i * EXEC_DAY))), hovertemplate: `${execShort(mode, prevK)} · %{customdata}: <b>%{y:,.0f}</b> cont<extra></extra>` }
-    ], baseLayout({ margin: { t: 24, l: 40, r: 10, b: 30 }, showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 11 } }, xaxis: { tickangle: 0, nticks: mode === 'week' ? 7 : 11 }, yaxis: { range: [0, Math.max(...dc, ...dp, 1) * 1.22] } }), PLOTLY_CFG);
-    document.getElementById('execDailyTitle').innerText = `Cont từng ngày · so với ${execShort(mode, prevK)} theo ngày thứ N`;
+        { x: xl.slice(0, dpL.length), y: dpL, type: 'bar', name: execShort(mode, prevK), marker: { color: C.s2 }, text: lblTxt(dpL), textposition: 'outside', textfont: { size: 10, color: '#64748B' }, cliponaxis: false, customdata: prevDates, hovertemplate: `${execShort(mode, prevK)} · %{customdata}: <b>%{y:,.0f}</b> cont<extra></extra>` },
+        { x: xl.slice(0, dc.length), y: dc, type: 'bar', name: execShort(mode, key), marker: { color: C.s1 }, text: lblTxt(dc), textposition: 'outside', textfont: { size: 10, color: C.ink }, cliponaxis: false, hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont<extra></extra>' }
+    ], baseLayout({ barmode: 'group', bargap: 0.28, bargroupgap: 0.06, margin: { t: 24, l: 40, r: 10, b: 30 }, showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 11 }, traceorder: 'normal' }, xaxis: { tickangle: 0, nticks: mode === 'week' ? 7 : 11 }, yaxis: { range: [0, Math.max(...dc, ...dpL, 1) * 1.22] } }), PLOTLY_CFG);
+    document.getElementById('execDailyTitle').innerText = `Cont từng ngày · ${execShort(mode, key)} so với ${execShort(mode, prevK)}`;
 
     // So sánh theo tháng: kỳ lương đang chọn (chế độ Tháng) hoặc kỳ chứa ngày cuối của tuần (chế độ Tuần)
     const sec3 = document.getElementById('execSec3');
@@ -3943,7 +3951,7 @@ function renderExecReport() {
     const cutDate = open ? latest : endDate;
     const curKy = mode === 'ky' ? key : kyOfDate(cutDate);
     renderExecMonthCompare(rows, curKy, cutDate);
-    document.getElementById('execMonthTotalTitle').innerText = mode === 'ky' ? `3. Sản lượng cont 6 tháng gần nhất` : `Sản lượng cont theo tháng (kỳ lương)`;
+    document.getElementById('execMonthTotalTitle').innerText = mode === 'ky' ? `3. Sản lượng cont 6 tháng gần nhất` : `3. Sản lượng cont theo tháng (kỳ lương)`;
     if (mode === 'ky') document.getElementById('execDailyTitle').innerText = `Cont từng ngày trong kỳ · so với ${execShort(mode, prevK)} theo ngày thứ N`;
 
     // Tóm tắt tự viết

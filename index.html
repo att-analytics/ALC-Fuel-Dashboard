@@ -373,6 +373,15 @@ body.exec-printing .exec-chart { height: 170px; }
     body.on-exec * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 @media screen and (max-width: 900px) { .exec-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .exec-grid2 { grid-template-columns: 1fr; } }
+.exec-maint-empty { font-size: 12px; color: var(--muted); border: 1px dashed var(--line); border-radius: 8px; padding: 10px 12px; background: #FAFBFC; }
+.exec-chart-sm { height: 190px; }
+.exec-plan { margin: 2px 0 0; padding-left: 0; list-style: none; font-size: 11.5px; line-height: 1.55; }
+.exec-plan li { padding: 2px 0; }
+.exec-plan-g { display: inline-block; min-width: 34px; font-size: 10px; font-weight: 700; color: #0B4F75; background: #E6F1F8; border-radius: 4px; padding: 0 5px; margin-right: 6px; text-align: center; }
+body.exec-present .exec-plan, body.exec-present .exec-maint-empty { font-size: 14px; }
+body.exec-present .exec-chart-sm { height: 260px; }
+@media print { body.on-exec #execMaintSec { break-before: page; page-break-before: always; padding-top: 2mm; } body.on-exec .exec-chart-sm { height: 200px; } body.on-exec .exec-plan { font-size: 9.5px; line-height: 1.4; } body.on-exec .exec-foot-note { font-size: 9px; } }
+body.exec-printing .exec-chart-sm { height: 200px; }
 
     </style>
 </head>
@@ -755,16 +764,9 @@ body.exec-printing .exec-chart { height: 170px; }
                     <div><div class="exec-h">5. Đội xe</div><table class="exec-table" id="execTeamTable"></table></div>
                     <div><div class="exec-h">Cần chú ý</div><div id="execWatch"></div></div>
                 </div>
-                <div class="exec-sec">
-                    <div class="exec-h">6. Sửa chữa và bảo dưỡng phương tiện</div>
-                    <div class="exec-kpis exec-pending">
-                        <div class="exec-kpi"><div class="k-l">Tỷ lệ xe sẵn sàng</div><div class="k-v">—</div><div class="k-d">Đang cập nhật</div></div>
-                        <div class="exec-kpi"><div class="k-l">Lượt sửa chữa</div><div class="k-v">—</div><div class="k-d">Đang cập nhật</div></div>
-                        <div class="exec-kpi"><div class="k-l">Xe nằm xưởng (ngày-xe)</div><div class="k-v">—</div><div class="k-d">Đang cập nhật</div></div>
-                        <div class="exec-kpi"><div class="k-l">Chi phí sửa chữa, bảo dưỡng</div><div class="k-v">—</div><div class="k-d">Đang cập nhật</div></div>
-                        <div class="exec-kpi"><div class="k-l">Bảo dưỡng đến hạn</div><div class="k-v">—</div><div class="k-d">Đang cập nhật</div></div>
-                    </div>
-                    <div class="exec-foot-note">Phần này sẽ lấy số liệu từ Team bảo dưỡng (TLT) khi dữ liệu sửa chữa, bảo dưỡng được đưa lên hệ thống.</div>
+                <div class="exec-sec" id="execMaintSec">
+                    <div class="exec-h" id="execMaintTitle">6. Sửa chữa và bảo dưỡng phương tiện</div>
+                    <div id="execMaint"></div>
                 </div>
                 <div class="exec-footer" id="execFooter"></div>
             </div>
@@ -774,7 +776,7 @@ body.exec-printing .exec-chart { height: 170px; }
         <div id="import-content-wrapper" style="display:none;">
             <div class="card">
                 <div class="section-heading">Tải file xuất từ hệ thống</div>
-                <div class="chart-note">Hỗ trợ file gốc, chưa chỉnh sửa: <b>Báo cáo tiêu hao nhiên liệu</b> (GPS), <b>Lịch sử giao dịch – TransactionHistoryTimeLine</b> (Dibee) và <b>danh sách lệnh Leader</b> (.xls). Có thể chọn nhiều file cùng lúc; file xuất chồng ngày không sao, dòng đã có sẽ tự bỏ qua. Với Leader: chỉ nhập lệnh đã có Ngày HT; lệnh đã có trong sheet mà thay đổi sẽ được cập nhật.</div>
+                <div class="chart-note">Hỗ trợ file gốc, chưa chỉnh sửa: <b>Báo cáo tiêu hao nhiên liệu</b> (GPS), <b>Lịch sử giao dịch – TransactionHistoryTimeLine</b> (Dibee), <b>danh sách lệnh Leader</b> (.xls) và <b>báo cáo tuần TLG</b> (sửa chữa, bảo dưỡng phương tiện – nhập lại cùng tuần sẽ ghi đè). Có thể chọn nhiều file cùng lúc; file xuất chồng ngày không sao, dòng đã có sẽ tự bỏ qua. Với Leader: chỉ nhập lệnh đã có Ngày HT; lệnh đã có trong sheet mà thay đổi sẽ được cập nhật.</div>
                 <label class="dropzone" id="importDrop">
                     <input type="file" id="importInput" accept=".xlsx,.xls,.csv" multiple onchange="onImportFiles(this.files); this.value='';">
                     <div class="dz-main">Kéo thả file vào đây hoặc bấm để chọn file</div>
@@ -945,7 +947,8 @@ body.exec-printing .exec-chart { height: 170px; }
 const IMPORT_KINDS = {
     gps: { label: 'GPS – Báo cáo tiêu hao nhiên liệu', sheet: 'Data GPS', cols: 25 },
     dibee: { label: 'Dibee – Lịch sử giao dịch', sheet: 'Data Dibee', cols: 13 },
-    leader: { label: 'Leader – Danh sách lệnh', sheet: 'Data Leader', cols: 21 }
+    leader: { label: 'Leader – Danh sách lệnh', sheet: 'Data Leader', cols: 21 },
+    maint: { label: 'TLG – Báo cáo tuần sửa chữa, bảo dưỡng', sheet: 'Bảo trì PT', cols: 6 }
 };
 
 const _norm = v => String(v == null ? '' : v).normalize('NFC').replace(/\s+/g, ' ').trim();
@@ -1015,6 +1018,7 @@ function detectImportKind(aoa) {
     if (text.includes('báo cáo tiêu hao nhiên liệu') || (text.includes('dừng xe không tắt máy') && text.includes('số lít đầu ngày'))) return 'gps';
     if (text.includes('lịch sử giao dịch') || text.includes('thời gian giao dịch')) return 'dibee';
     if (text.includes('số lệnh') && text.includes('loại lệnh')) return 'leader';
+    if (text.includes('quản lý xe đầu kéo') || text.includes('đủ điều kiện hoạt động')) return 'maint';
     return null;
 }
 
@@ -1147,15 +1151,96 @@ function parseLeaderExport(aoa) {
     return s;
 }
 
+// ---------------- TLG: Báo cáo tuần sửa chữa, bảo dưỡng ----------------
+// Mỗi chỉ tiêu theo ngày -> 1 dòng [ngày, nhóm, mã, chỉ tiêu, giá trị, ghi chú]; ghi chú tuần và kế hoạch tuần sau cũng thành dòng.
+const MAINT_CODES = [
+    ['xe', /đủ điều kiện hoạt động/, 'san_sang'], ['xe', /dừng hoạt động|chờ tuyển/, 'dung'], ['xe', /^bảo dưỡng/, 'bao_duong'],
+    ['xe', /^sửa chữa/, 'sua_chua'], ['xe', /đại tu/, 'dai_tu'], ['xe', /bàn giao/, 'ban_giao'], ['xe', /kiểm định/, 'kiem_dinh'],
+    ['xe', /^sơn/, 'son'], ['xe', /garage|trung tu/, 'garage'], ['xe', /kiểm tra thực tế/, 'kiem_tra'],
+    ['mooc', /đủ điều kiện hoạt động/, 'san_sang'], ['mooc', /^bảo dưỡng/, 'bao_duong'], ['mooc', /^sửa chữa/, 'sua_chua'],
+    ['mooc', /^sơn/, 'son'], ['mooc', /hết hạn/, 'het_han'], ['mooc', /kiểm định/, 'kiem_dinh'], ['mooc', /^rửa/, 'rua'],
+    ['mooc', /kiểm tra thực tế/, 'kiem_tra']
+];
+const MAINT_GROUP = { xe: 'Đầu kéo', mooc: 'Mooc' };
+
+function _maintValue(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (typeof v === 'number') return isFinite(v) ? v : '';
+    const s = _norm(v), m = s.match(/^(\d+(?:[.,]\d+)?)\s*(lượt|xe|cái|mooc)?$/i);
+    return m ? impNum(m[1]) : s;
+}
+
+function parseMaintReport(aoa) {
+    const rows = [], errors = [], dates = [];
+    let sec = null, dayCols = null, planSec = null, planStart = null, lastDate = null;
+    const notes = [];
+    for (let i = 0; i < aoa.length; i++) {
+        const r = aoa[i] || [];
+        const a = _normKey(r[0]), b = _normKey(r[1]);
+        if (/^i\.\s*quản lý xe/.test(a)) { sec = 'xe'; planSec = null; continue; }
+        if (/^ii\.\s*quản lý m/.test(a)) { sec = 'mooc'; planSec = null; continue; }
+        if (/^iii\.\s*kế hoạch/.test(a)) {
+            sec = 'plan';
+            const m = _norm(r[0]).match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?\s*đến[^\d]*(\d{1,2})\/(\d{1,2})\/(\d{4})/i);
+            if (m) planStart = { y: +(m[3] || m[6]), m: +m[2], d: +m[1] };
+            continue;
+        }
+        if (sec === 'plan') {
+            if (/^1\.\s*xe/.test(a)) { planSec = 'KH Đầu kéo'; continue; }
+            if (/^2\.\s*(sơ mi|mooc|rơ)/.test(a) || /^2\./.test(a)) { planSec = 'KH Mooc'; continue; }
+            if (!planSec || typeof r[0] !== 'number' || !b) continue;
+            const qty = _norm(r[2]);
+            if (/^không$/i.test(qty) || (!qty && !_norm(r[8]))) continue;
+            const note = [_norm(r[4]) && 'Tại ' + _norm(r[4]), _norm(r[6]), _norm(r[8])].filter(Boolean).join(' · ');
+            rows.push(['', planSec, 'kh' + r[0], _norm(r[1]), qty || '', note]);
+            continue;
+        }
+        if (!sec) continue;
+        // Dòng ngày: ô thứ 3 là ngày
+        if (!_norm(r[0]) && !b && impParseDate(r[2])) {
+            dayCols = [];
+            for (let c = 2; c < r.length; c++) { const d = impParseDate(r[c]); if (d) dayCols.push([c, d]); else if (dayCols.length) break; }
+            continue;
+        }
+        if (!dayCols) continue;
+        let code = null, label = _norm(r[1]);
+        if (a === 'tổng cộng') { code = 'tong'; label = 'Tổng cộng'; }
+        else if (typeof r[0] === 'number' && b) { const hit = MAINT_CODES.find(x => x[0] === sec && x[1].test(b)); code = hit ? hit[2] : 'khac' + r[0]; }
+        if (!code) continue;
+        dayCols.forEach(([c, d]) => {
+            const v = _maintValue(r[c]);
+            if (v === '') return;
+            const tok = impDateToken(d);
+            rows.push([tok, MAINT_GROUP[sec], code, label, v, '']);
+            dates.push(tok.slice(2));
+            if (!lastDate || tok > lastDate) lastDate = tok;
+        });
+        const extra = r.slice(11).map(_norm).filter(Boolean).join(' ');
+        if (extra) notes.push(`${MAINT_GROUP[sec]}: ${extra}`);
+    }
+    if (!rows.length) throw new Error('Không đọc được số liệu theo ngày trong báo cáo TLG.');
+    const firstDay = dates.slice().sort()[0];
+    // Ghi chú tuần gắn vào ngày đầu tuần báo cáo
+    notes.forEach((n, k) => rows.push(['D:' + firstDay, 'Ghi chú tuần', 'note' + (k + 1), 'Ghi chú', n, '']));
+    // Kế hoạch tuần sau gắn vào ngày đầu tuần kế hoạch (thiếu thì lấy ngày cuối báo cáo + 1)
+    if (!planStart && lastDate) { const t = new Date(+lastDate.slice(2, 6), +lastDate.slice(7, 9) - 1, +lastDate.slice(10, 12) + 1); planStart = { y: t.getFullYear(), m: t.getMonth() + 1, d: t.getDate() }; }
+    rows.forEach(r => { if (!r[0]) r[0] = planStart ? impDateToken(planStart) : 'D:' + firstDay; });
+    const s = _summary('maint', rows.map(r => [r[0], r[1]]), errors, dates, { plates: 0 });
+    s.rows = rows;
+    s.days = new Set(dates).size;
+    return s;
+}
+
 function parseImportAoa(aoa) {
     const kind = detectImportKind(aoa);
     if (kind === 'gps') return parseGpsReport(aoa);
     if (kind === 'dibee') return parseDibeeExport(aoa);
     if (kind === 'leader') return parseLeaderExport(aoa);
-    throw new Error('Không nhận ra loại file. Chỉ hỗ trợ "Báo cáo tiêu hao nhiên liệu" (GPS), "Lịch sử giao dịch" (Dibee) và danh sách lệnh Leader.');
+    if (kind === 'maint') return parseMaintReport(aoa);
+    throw new Error('Không nhận ra loại file. Chỉ hỗ trợ "Báo cáo tiêu hao nhiên liệu" (GPS), "Lịch sử giao dịch" (Dibee), danh sách lệnh Leader và báo cáo tuần TLG (sửa chữa, bảo dưỡng).');
 }
 
-if (typeof module !== 'undefined') module.exports = { parseImportAoa, detectImportKind, impNum, impParseDate, impDuration, impPercent };
+if (typeof module !== 'undefined') module.exports = { parseImportAoa, parseMaintReport, detectImportKind, impNum, impParseDate, impDuration, impPercent };
 
 const GAS_API_URL = "https://script.google.com/macros/s/AKfycbyFr6q3klsGiXSnUIgwR7N9d9imTek8RKVm4iq3pc63WqFURo9E7lhLgY574fAHV6QhCQ/exec";
 const OFFLINE_INITIAL_PAYLOAD = null;
@@ -1210,7 +1295,7 @@ const KPI_LABELS = {
     ]
 };
 
-let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [], FUEL_TX = [], PRICE_BY_KY = {}, STATION_PRICE_EVENTS = [];
+let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [], FUEL_TX = [], PRICE_BY_KY = {}, STATION_PRICE_EVENTS = [], MAINT_ROWS = [];
 let CURRENT_FILTERED_LEADER_ORDERS = [], CURRENT_STD_TABLE_DATA = [], CURRENT_STD_IS_WEEK = false, CURRENT_STD_MODE = 'fuel';
 let TEAM1_VEHICLES = [], ALL_VEHICLES = [], VEH_TEAM_MAP = {}, MAX_DATE_GPS = "N/A";
 let DATA_CHECKS = { sources: [], items: [], counts: {} }, CHECK_FILTER = 'all';
@@ -1352,6 +1437,7 @@ function hydrateDashboardPayload(payload) {
     FUEL_TX = payload.FUEL_TX || [];
     PRICE_BY_KY = payload.PRICE_BY_KY || {};
     STATION_PRICE_EVENTS = payload.STATION_PRICE_EVENTS || [];
+    MAINT_ROWS = payload.MAINT_ROWS || [];
 
     TEAM1_VEHICLES = payload.TEAM1_VEHICLES || [];
     ALL_VEHICLES = payload.ALL_VEHICLES || [];
@@ -1786,7 +1872,7 @@ function renderImportFiles() {
         if (p) {
             const chk = p.check;
             const chkOk = chk ? (p.kind === 'gps' ? Math.abs(chk.totalKm - chk.sumKm) < 1 : Math.abs(chk.totalLit - chk.sumLit) < 1) : null;
-            stats = `<div class="imp-stats"><span>Khoảng ngày: <b>${escapeHtml(p.from)} → ${escapeHtml(p.to)}</b></span><span>Dòng hợp lệ: <b>${formatNum(p.rows.length)}</b></span><span>Số xe: <b>${formatNum(p.plates)}</b></span>`
+            stats = `<div class="imp-stats"><span>Khoảng ngày: <b>${escapeHtml(p.from)} → ${escapeHtml(p.to)}</b></span><span>Dòng hợp lệ: <b>${formatNum(p.rows.length)}</b></span>${p.kind === 'maint' ? `<span>Số ngày: <b>${formatNum(p.days)}</b></span>` : `<span>Số xe: <b>${formatNum(p.plates)}</b></span>`}`
                 + (chk ? `<span>Đối chiếu dòng "Tổng" của file: <b class="${chkOk ? 'txt-good' : 'txt-bad'}">${chkOk ? 'khớp' : 'lệch'}</b></span>` : '')
                 + (p.incomplete ? `<span>Lệnh chưa hoàn thành (bỏ qua, nhập ở lần sau): <b>${formatNum(p.incomplete)}</b></span>` : '')
                 + (p.errors.length ? `<span class="txt-bad">Dòng lỗi: <b>${p.errors.length}</b></span>` : '') + `</div>`
@@ -1798,7 +1884,9 @@ function renderImportFiles() {
             const unk = (r.unknownPlates || []).length ? ` Biển số chưa có trong Data box: ${r.unknownPlates.slice(0, 8).map(escapeHtml).join(', ')}${r.unknownPlates.length > 8 ? '…' : ''}.` : '';
             const isUpsert = p.kind === 'leader';
             if (it.state === 'ready') {
-                const what = isUpsert
+                const what = p.kind === 'maint'
+                    ? `<b>${formatNum(r.added)}</b> dòng mới${r.updated ? ` · <b>${formatNum(r.updated)}</b> dòng sẽ được cập nhật` : ''}${r.duplicates ? ` · <b>${formatNum(r.duplicates)}</b> dòng không đổi` : ''} sẽ ghi vào sheet 'Bảo trì PT'`
+                    : isUpsert
                     ? `<b>${formatNum(r.added)}</b> dòng lệnh mới sẽ được thêm${r.updated ? ` · <b>${formatNum(r.updated)}</b> dòng lệnh đã có sẽ được cập nhật (có thay đổi)` : ''}${r.duplicates ? ` · <b>${formatNum(r.duplicates)}</b> dòng không đổi` : ''}`
                     : `<b>${formatNum(r.added)}</b> dòng mới sẽ được ghi vào '${IMPORT_KINDS[p.kind].sheet}' (từ dòng ${formatNum(r.startRow)})${r.duplicates ? ` · <b>${formatNum(r.duplicates)}</b> dòng đã có, sẽ bỏ qua` : ''}`;
                 status = `<div class="imp-status ${unk ? 'warn' : 'info'}">${what}.${unk}</div>`;
@@ -3819,6 +3907,8 @@ function renderExecReport() {
     }
     if (top.length) sum.push(`Khách hàng lớn nhất: <b>${escapeHtml(top[0][0])}</b> (${share(top[0][1])} sản lượng); top 5 chiếm ${share(top.reduce((a, x) => a + x[1], 0))}.`);
     if (idle.length) sum.push(`Cần chú ý: ${idle.length} xe không có lệnh từ 3 ngày trở lên (xem mục 5).`);
+    const maintLine = renderExecMaint({ mode, key, start, len, prevK });
+    if (maintLine) sum.push(maintLine);
     document.getElementById('execSummary').innerHTML = sum.map(s => `<li>${s}</li>`).join('');
 
     const now = new Date();
@@ -3826,7 +3916,7 @@ function renderExecReport() {
 }
 
 function resizeExecCharts() {
-    ['chartExecTrend', 'chartExecDaily'].forEach(id => { const el = document.getElementById(id); if (el && el.data) Plotly.Plots.resize(el); });
+    ['chartExecTrend', 'chartExecDaily', 'chartExecMaint'].forEach(id => { const el = document.getElementById(id); if (el && el.data) Plotly.Plots.resize(el); });
 }
 function toggleExecPresent(force) {
     EXEC_PRESENT = typeof force === 'boolean' ? force : !EXEC_PRESENT;
@@ -3843,6 +3933,110 @@ function printExecReport() {
 window.addEventListener('beforeprint', () => { if (CURRENT_TAB === 'exec_report') { document.body.classList.add('exec-printing'); resizeExecCharts(); } });
 window.addEventListener('afterprint', () => { document.body.classList.remove('exec-printing'); setTimeout(resizeExecCharts, 60); });
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && EXEC_PRESENT) toggleExecPresent(false); });
+
+// ---- Mục 6 của Báo cáo tổng quan: sửa chữa, bảo dưỡng (báo cáo tuần TLG, sheet "Bảo trì PT") ----
+function execMaintStats(fromD, toD) {
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const a = iso(fromD), b = iso(toD);
+    const rows = MAINT_ROWS.filter(r => r[0] >= a && r[0] <= b);
+    const day = {};   // 'yyyy-mm-dd' -> {xe:{code:v}, mooc:{code:v}}
+    rows.forEach(r => {
+        const g = r[1] === 'Đầu kéo' ? 'xe' : (r[1] === 'Mooc' ? 'mooc' : null);
+        if (!g || typeof r[4] !== 'number') return;
+        const o = day[r[0]] || (day[r[0]] = { xe: {}, mooc: {} });
+        o[g][r[2]] = r[4];
+    });
+    const days = Object.keys(day).sort();
+    const avg = (g, c) => { const v = days.map(d => day[d][g][c]).filter(x => typeof x === 'number'); return v.length ? v.reduce((s, x) => s + x, 0) / v.length : null; };
+    const sum = (g, c) => days.reduce((s, d) => s + (day[d][g][c] || 0), 0);
+    const notes = rows.filter(r => r[1] === 'Ghi chú tuần').map(r => String(r[4]));
+    return {
+        days, day, notes,
+        xeReady: avg('xe', 'san_sang'), xeTotal: avg('xe', 'tong'), xeStop: avg('xe', 'dung'),
+        xeRepairDays: sum('xe', 'sua_chua'), xeRepairAvg: avg('xe', 'sua_chua'), xeMaint: sum('xe', 'bao_duong'), xeInspect: sum('xe', 'kiem_dinh'),
+        xeOverhaul: avg('xe', 'dai_tu'), xeGarage: sum('xe', 'garage'),
+        moocReady: avg('mooc', 'san_sang'), moocTotal: avg('mooc', 'tong'), moocExpired: avg('mooc', 'het_han'),
+        moocMaint: sum('mooc', 'bao_duong'), moocRepair: sum('mooc', 'sua_chua'), moocInspect: sum('mooc', 'kiem_dinh')
+    };
+}
+
+function renderExecMaint(ctx) {
+    const box = document.getElementById('execMaint');
+    const { mode, key, start, len, prevK } = ctx;
+    const end = new Date(start.getTime() + (len - 1) * EXEC_DAY);
+    const M = execMaintStats(start, end);
+    const pS = execStart(mode, prevK), P = execMaintStats(pS, new Date(pS.getTime() + (execLen(mode, prevK) - 1) * EXEC_DAY));
+    const title = document.getElementById('execMaintTitle');
+    if (!M.days.length) {
+        title.innerText = '6. Sửa chữa và bảo dưỡng phương tiện';
+        const has = MAINT_ROWS.length;
+        box.innerHTML = `<div class="exec-maint-empty">${has ? `Chưa có báo cáo tuần TLG cho ${escapeHtml(execShort(mode, key).toLowerCase())}.` : 'Chưa có báo cáo tuần TLG nào trên hệ thống.'} Nhập file "Báo cáo kết quả tuần" của Team bảo dưỡng tại <b>Hệ thống → Cập nhật dữ liệu</b>.</div>`;
+        return '';
+    }
+    const dd = s => `${s.slice(8, 10)}/${s.slice(5, 7)}`;
+    title.innerText = `6. Sửa chữa và bảo dưỡng phương tiện · báo cáo TLG ${dd(M.days[0])} – ${dd(M.days[M.days.length - 1])}${M.days.length < len ? ` (${M.days.length}/${len} ngày)` : ''}`;
+    const pct = (a, b) => (a != null && b) ? a / b * 100 : null;
+    const rXe = pct(M.xeReady, M.xeTotal), rXeP = pct(P.xeReady, P.xeTotal), rMo = pct(M.moocReady, M.moocTotal), rMoP = pct(P.moocReady, P.moocTotal);
+    const prevLbl = execShort(mode, prevK);
+    const ptDelta = (a, b) => (a == null || b == null) ? `<div class="k-d muted">Chưa có số ${escapeHtml(prevLbl)}</div>` : execDeltaPt(a, b, prevLbl, false);
+
+    // Lượt sửa chữa ghi trong ghi chú TLG: "tổng lượt sửa chữa trong tuần:33 lượt = 26 xe (...)"
+    let luot = null, luotXe = null, luotDetail = '';
+    M.notes.forEach(n => {
+        const m = n.match(/lượt sửa chữa[^\d]*(\d+)\s*lượt\s*=\s*(\d+)\s*xe\s*(\((.*)\))?/i);
+        if (m) { luot = (luot || 0) + +m[1]; luotXe = (luotXe || 0) + +m[2]; if (m[4]) luotDetail = m[4].replace(/\s*;\s*/g, ' · ').trim(); }
+    });
+
+    // Xe có lệnh mỗi ngày (Leader, Đội 1 + Đội 2) so với xe sẵn sàng (TLG)
+    const runByDay = {};
+    LEADER_ORDERS.forEach(r => {
+        if (r.doi !== 'ĐỘI 1' && r.doi !== 'ĐỘI 2') return;
+        const d = parseDmy(r.ht); if (!d) return;
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        (runByDay[k] || (runByDay[k] = new Set())).add(r.bs);
+    });
+    const runs = M.days.map(d => runByDay[d] ? runByDay[d].size : null);
+    const readyArr = M.days.map(d => M.day[d].xe.san_sang ?? null);
+    const pairs = M.days.map((d, i) => [readyArr[i], runs[i]]).filter(p => p[0] && p[1] != null);
+    const useRate = pairs.length ? pairs.reduce((s, p) => s + p[1], 0) / pairs.reduce((s, p) => s + p[0], 0) * 100 : null;
+
+    const kpi = (label, val, unit, sub, d) => `<div class="exec-kpi"><div class="k-l">${label}</div><div class="k-v">${val}<small>${unit}</small></div>${sub ? `<div class="k-s">${sub}</div>` : ''}${d || ''}</div>`;
+    const f1 = v => v == null ? '–' : fmt1(v).replace(/,0$/, '');
+    const kpis = [
+        kpi('Xe đầu kéo sẵn sàng', f1(M.xeReady), `/ ${f1(M.xeTotal)} xe`, `${rXe == null ? '' : fmt1(rXe) + '% đội xe · '}bình quân mỗi ngày`, ptDelta(rXe, rXeP)),
+        kpi('Sửa chữa xe đầu kéo', luot != null ? formatNum(luot) : formatNum(M.xeRepairDays), luot != null ? `lượt · ${formatNum(luotXe)} xe` : 'xe-ngày', `${formatNum(M.xeRepairDays)} xe-ngày nằm sửa (BQ ${f1(M.xeRepairAvg)} xe/ngày)`,
+            P.days.length ? execDelta(M.xeRepairDays, P.xeRepairDays, prevLbl, true) : ''),
+        kpi('Bảo dưỡng · kiểm định', `${formatNum(M.xeMaint)} · ${formatNum(M.xeInspect)}`, 'xe', `đại tu / garage: ${formatNum(M.xeGarage)}`, ''),
+        kpi('Xe dừng, chờ tài xế', f1(M.xeStop), 'xe', 'bình quân mỗi ngày', P.days.length ? execDelta(M.xeStop || 0, P.xeStop || 0, prevLbl, true) : ''),
+        kpi('Mooc sẵn sàng', f1(M.moocReady), `/ ${f1(M.moocTotal)} mooc`, `${rMo == null ? '' : fmt1(rMo) + '% · '}${f1(M.moocExpired)} mooc hết hạn lưu hành`, ptDelta(rMo, rMoP))
+    ].join('');
+
+    // Kế hoạch: ngày kế hoạch gần nhất trong khoảng (đầu kỳ+1 … cuối kỳ+1)
+    const iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const pA = iso(new Date(start.getTime() + EXEC_DAY)), pB = iso(new Date(end.getTime() + EXEC_DAY));
+    const planDates = [...new Set(MAINT_ROWS.filter(r => /^KH /.test(r[1]) && r[0] >= pA && r[0] <= pB).map(r => r[0]))].sort();
+    const planD = planDates[planDates.length - 1];
+    const plan = planD ? MAINT_ROWS.filter(r => r[0] === planD && /^KH /.test(r[1])) : [];
+    const planLine = g => plan.filter(r => r[1] === g && r[4] !== '').map(r => `${escapeHtml(r[3].replace(/\s*\(.*\)\s*$/, ''))} <b>${escapeHtml(String(r[4]).replace(/\s+/g, ' ').replace(/^0(\d)/, '$1'))}</b>`).join(' · ');
+    const planHtml = plan.length ? `<div class="exec-watch-h" style="margin-top:6px;">Kế hoạch tuần từ ${dd(planD)}</div><ul class="exec-plan">${[['KH Đầu kéo', 'Xe'], ['KH Mooc', 'Mooc']].map(([g, l]) => { const t = planLine(g); return t ? `<li><span class="exec-plan-g">${l}</span>${t}</li>` : ''; }).join('')}</ul>` : '';
+    const otherNotes = M.notes.map(n => n.replace(/^(Đầu kéo|Mooc):\s*/, '')).filter(n => !/lượt sửa chữa/i.test(n) && !/^\d+\s*lượt\s*=/i.test(n));
+
+    box.innerHTML = `<div class="exec-kpis">${kpis}</div>
+        <div class="exec-grid2" style="margin-top:10px;">
+            <div><div class="exec-watch-h">Xe sẵn sàng (TLG) và xe có lệnh (Leader) mỗi ngày${useRate != null ? ` · khai thác <b>${fmt1(useRate)}%</b> số xe sẵn sàng` : ''}</div><div id="chartExecMaint" class="exec-chart exec-chart-sm"></div></div>
+            <div>${luotDetail ? `<div class="exec-watch-h">Chi tiết sửa chữa: ${escapeHtml(luotDetail)}</div>` : ''}${otherNotes.length ? `<div class="exec-foot-note">${otherNotes.map(escapeHtml).join('<br>')}</div>` : ''}${planHtml}</div>
+        </div>`;
+
+    const xl = M.days.map(d => { const t = new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)); return `${['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][t.getDay()]} ${dd(d)}`; });
+    Plotly.react('chartExecMaint', [
+        { x: xl, y: readyArr, type: 'bar', name: 'Xe sẵn sàng', marker: { color: '#B9D7EA' }, text: readyArr.map(v => v ?? ''), textposition: 'inside', insidetextanchor: 'end', textfont: { size: 10, color: C.ink }, hovertemplate: '%{x}: <b>%{y}</b> xe sẵn sàng<extra></extra>' },
+        { x: xl, y: runs, type: 'scatter', mode: 'lines+markers+text', name: 'Xe có lệnh', line: { color: C.s1, width: 2 }, marker: { size: 7, color: C.s1 }, text: runs.map(v => v ?? ''), textposition: 'top center', textfont: { size: 10, color: C.s1 }, hovertemplate: '%{x}: <b>%{y}</b> xe có lệnh<extra></extra>' }
+    ], baseLayout({ margin: { t: 22, l: 34, r: 8, b: 28 }, showlegend: true, legend: { orientation: 'h', y: 1.18, x: 0, font: { size: 11 } }, yaxis: { range: [0, Math.max(...readyArr.map(v => v || 0), M.xeTotal || 0, 1) * 1.15] }, xaxis: { nticks: 8 } }), PLOTLY_CFG);
+
+    return `Phương tiện: bình quân <b>${f1(M.xeReady)}/${f1(M.xeTotal)} xe đầu kéo sẵn sàng</b>${rXe != null ? ` (${fmt1(rXe)}%)` : ''}`
+        + (luot != null ? `, ${formatNum(luot)} lượt sửa chữa trên ${formatNum(luotXe)} xe` : `, ${formatNum(M.xeRepairDays)} xe-ngày nằm sửa`)
+        + (useRate != null ? `; đội xe khai thác ${fmt1(useRate)}% số xe sẵn sàng` : '') + '.';
+}
 
     </script>
 </body>

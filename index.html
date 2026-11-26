@@ -380,8 +380,25 @@ body.exec-printing .exec-chart { height: 170px; }
 .exec-plan-g { display: inline-block; min-width: 34px; font-size: 10px; font-weight: 700; color: #0B4F75; background: #E6F1F8; border-radius: 4px; padding: 0 5px; margin-right: 6px; text-align: center; }
 body.exec-present .exec-plan, body.exec-present .exec-maint-empty { font-size: 14px; }
 body.exec-present .exec-chart-sm { height: 260px; }
-@media print { body.on-exec #execMaintSec { break-before: page; page-break-before: always; padding-top: 2mm; } body.on-exec .exec-chart-sm { height: 200px; } body.on-exec .exec-plan { font-size: 9.5px; line-height: 1.4; } body.on-exec .exec-foot-note { font-size: 9px; } }
+@media print { body.on-exec #execTeamSec { break-before: page; page-break-before: always; padding-top: 2mm; } body.on-exec .exec-chart-sm { height: 200px; } body.on-exec .exec-plan { font-size: 9.5px; line-height: 1.4; } body.on-exec .exec-foot-note { font-size: 9px; } }
 body.exec-printing .exec-chart-sm { height: 200px; }
+.exec-sec3 { display: flex; flex-direction: column; gap: 10px; }
+.exec-sec3.month-mode .exec-row-b { order: 1; }
+.exec-sec3.month-mode .exec-row-a { order: 2; grid-template-columns: 1fr; }
+.exec-sec3.month-mode #execTrendBox { display: none; }
+.exec-sec3.month-mode #chartExecDaily { height: 180px; }
+.exec-sec3 .exec-foot-note { order: 3; margin-top: -4px; }
+@media print { body.on-exec .exec-sec3 { gap: 6px; } body.on-exec .exec-sec3.month-mode #chartExecDaily { height: 140px; } }
+body.exec-printing .exec-sec3.month-mode #chartExecDaily { height: 140px; }
+.exec-sec3.month-mode .exec-foot-note { order: 2; margin-top: -4px; }
+.exec-sec3.month-mode .exec-row-a { order: 3; }
+@media print {
+    body.on-exec .exec-sec3.month-mode .exec-row-a { display: none; }
+    body.on-exec .exec-sec3:not(.month-mode) .exec-chart { height: 150px; }
+}
+body.exec-printing .exec-sec3:not(.month-mode) .exec-chart { height: 150px; }
+
+#execTeamTable td:first-child { white-space: nowrap; }
 
     </style>
 </head>
@@ -747,15 +764,22 @@ body.exec-printing .exec-chart-sm { height: 200px; }
                     <div class="exec-h">2. Chỉ số chính</div>
                     <div class="exec-kpis" id="execKpis"></div>
                 </div>
-                <div class="exec-sec exec-grid2">
-                    <div><div class="exec-h" id="execTrendTitle">3. Xu hướng sản lượng</div><div id="chartExecTrend" class="exec-chart"></div></div>
-                    <div><div class="exec-h" id="execDailyTitle">Sản lượng từng ngày</div><div id="chartExecDaily" class="exec-chart"></div></div>
+                <div class="exec-sec exec-sec3" id="execSec3">
+                    <div class="exec-grid2 exec-row-a" id="execRowA">
+                        <div id="execTrendBox"><div class="exec-h" id="execTrendTitle">3. Xu hướng sản lượng</div><div id="chartExecTrend" class="exec-chart"></div></div>
+                        <div id="execDailyBox"><div class="exec-h" id="execDailyTitle">Sản lượng từng ngày</div><div id="chartExecDaily" class="exec-chart"></div></div>
+                    </div>
+                    <div class="exec-grid2 exec-row-b" id="execRowB">
+                        <div><div class="exec-h" id="execMonthTotalTitle">Tổng sản lượng từng tháng</div><div id="chartExecMonthTotal" class="exec-chart"></div></div>
+                        <div><div class="exec-h" id="execSameDayTitle">Tới cùng ngày của tháng</div><div id="chartExecSameDay" class="exec-chart"></div></div>
+                    </div>
+                    <div class="exec-foot-note" id="execSameDayNote"></div>
                 </div>
                 <div class="exec-sec exec-grid2">
                     <div><div class="exec-h">4. Khách hàng chính</div><table class="exec-table" id="execCustTable"></table></div>
                     <div><div class="exec-h">Cơ cấu loại lệnh</div><table class="exec-table" id="execCmdTable"></table></div>
                 </div>
-                <div class="exec-sec exec-grid2">
+                <div class="exec-sec exec-grid2" id="execTeamSec">
                     <div><div class="exec-h">5. Đội xe</div><table class="exec-table" id="execTeamTable"></table></div>
                     <div><div class="exec-h">Cần chú ý</div><div id="execWatch"></div></div>
                 </div>
@@ -3913,6 +3937,15 @@ function renderExecReport() {
     ], baseLayout({ margin: { t: 24, l: 40, r: 10, b: 30 }, showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 11 } }, xaxis: { tickangle: 0, nticks: mode === 'week' ? 7 : 11 }, yaxis: { range: [0, Math.max(...dc, ...dp, 1) * 1.22] } }), PLOTLY_CFG);
     document.getElementById('execDailyTitle').innerText = `Cont từng ngày · so với ${execShort(mode, prevK)} theo ngày thứ N`;
 
+    // So sánh theo tháng: kỳ lương đang chọn (chế độ Tháng) hoặc kỳ chứa ngày cuối của tuần (chế độ Tuần)
+    const sec3 = document.getElementById('execSec3');
+    sec3.classList.toggle('month-mode', mode === 'ky');
+    const cutDate = open ? latest : endDate;
+    const curKy = mode === 'ky' ? key : kyOfDate(cutDate);
+    renderExecMonthCompare(rows, curKy, cutDate);
+    document.getElementById('execMonthTotalTitle').innerText = mode === 'ky' ? `3. Sản lượng cont 6 tháng gần nhất` : `Sản lượng cont theo tháng (kỳ lương)`;
+    if (mode === 'ky') document.getElementById('execDailyTitle').innerText = `Cont từng ngày trong kỳ · so với ${execShort(mode, prevK)} theo ngày thứ N`;
+
     // Tóm tắt tự viết
     const sum = [];
     const pc = P ? execPct(S.cont, P.cont) : null, yc = Y ? execPct(S.cont, Y.cont) : null;
@@ -3937,7 +3970,7 @@ function renderExecReport() {
 }
 
 function resizeExecCharts() {
-    ['chartExecTrend', 'chartExecDaily', 'chartExecMaint'].forEach(id => { const el = document.getElementById(id); if (el && el.data) Plotly.Plots.resize(el); });
+    ['chartExecTrend', 'chartExecDaily', 'chartExecMaint', 'chartExecMonthTotal', 'chartExecSameDay'].forEach(id => { const el = document.getElementById(id); if (el && el.data) Plotly.Plots.resize(el); });
 }
 function toggleExecPresent(force) {
     EXEC_PRESENT = typeof force === 'boolean' ? force : !EXEC_PRESENT;
@@ -4057,6 +4090,51 @@ function renderExecMaint(ctx) {
     return `Phương tiện: bình quân <b>${f1(M.xeReady)}/${f1(M.xeTotal)} xe đầu kéo sẵn sàng</b>${rXe != null ? ` (${fmt1(rXe)}%)` : ''}`
         + (luot != null ? `, ${formatNum(luot)} lượt sửa chữa trên ${formatNum(luotXe)} xe` : `, ${formatNum(M.xeRepairDays)} xe-ngày nằm sửa`)
         + (useRate != null ? `; đội xe khai thác ${fmt1(useRate)}% số xe sẵn sàng` : '') + '.';
+}
+
+// ---- Báo cáo tổng quan: so sánh theo tháng (kỳ lương) – tổng từng kỳ và tới cùng ngày thứ N ----
+function kyOfDate(d) {
+    let m = d.getMonth() + 1, y = d.getFullYear();
+    if (d.getDate() >= 26) { m += 1; if (m === 13) { m = 1; y += 1; } }
+    return `${String(m).padStart(2, '0')}/${y}`;
+}
+function renderExecMonthCompare(rows, curKy, cutDate) {
+    const kys = [...new Set(LEADER_ORDERS.map(r => r.kl))].filter(Boolean).sort((a, b) => kyKey(a).localeCompare(kyKey(b)));
+    const idx = kys.indexOf(curKy);
+    if (idx < 0) return;
+    const list = kys.slice(Math.max(0, idx - 5), idx + 1);
+    const n = Math.round((cutDate - kyStartDate(curKy)) / EXEC_DAY);       // ngày thứ n+1 của kỳ
+    const kyLenCur = Math.round((kyEndDate(curKy) - kyStartDate(curKy)) / EXEC_DAY) + 1;
+    const full = n + 1 >= kyLenCur;
+    const tot = {}, same = {};
+    list.forEach(k => { tot[k] = 0; same[k] = 0; });
+    rows.forEach(({ r, d }) => {
+        if (!(r.kl in tot)) return;
+        const v = Number(r.sc || 0);
+        tot[r.kl] += v;
+        if (Math.round((d - kyStartDate(r.kl)) / EXEC_DAY) <= n) same[r.kl] += v;
+    });
+    const lbl = k => `T${k.slice(0, 2)}/${k.slice(5)}`;
+    const colors = list.map((k, i) => k === curKy ? C.s1 : (i === list.length - 2 ? C.s2 : '#CBD5E1'));
+    const x = list.map(lbl);
+    // Tổng từng kỳ (kỳ hiện tại chỉ tới ngày đã có dữ liệu)
+    const tv = list.map(k => Math.round(tot[k]));
+    Plotly.react('chartExecMonthTotal', [{
+        x, y: tv, type: 'bar', marker: { color: colors },
+        text: tv.map((v, i) => formatNum(v) + (list[i] === curKy && !full ? `<br><span style="font-size:10px">đến ${dShort(cutDate)}</span>` : '')),
+        textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
+        hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont<extra></extra>'
+    }], baseLayout({ margin: { t: 24, l: 44, r: 10, b: 30 }, showlegend: false, yaxis: { range: [0, Math.max(...tv, 1) * 1.28] } }), PLOTLY_CFG);
+    // Tới cùng ngày thứ n+1: số kỳ cũ kèm % kỳ hiện tại cao/thấp hơn
+    const sv = list.map(k => Math.round(same[k])), cur = sv[sv.length - 1];
+    Plotly.react('chartExecSameDay', [{
+        x, y: sv, type: 'bar', marker: { color: colors },
+        text: sv.map((v, i) => { if (list[i] === curKy || !v) return formatNum(v); const p = (cur - v) / v * 100; return `${formatNum(v)}<br><span style="font-size:10px">${p >= 0 ? '▲' : '▼'}${Math.round(Math.abs(p))}%</span>`; }),
+        textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
+        hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont tới cùng mốc<extra></extra>'
+    }], baseLayout({ margin: { t: 24, l: 44, r: 10, b: 30 }, showlegend: false, yaxis: { range: [0, Math.max(...sv, 1) * 1.32] } }), PLOTLY_CFG);
+    document.getElementById('execSameDayTitle').innerText = full ? `Cả kỳ (tới ngày 25) – so sánh ${list.length} tháng` : `Tới ngày thứ ${n + 1} của kỳ (cùng mốc ${dShort(cutDate)})`;
+    document.getElementById('execSameDayNote').innerText = `Tháng tính theo kỳ lương (26 tháng trước – 25). Dấu % trên cột các tháng trước: ${lbl(curKy)} cao (▲) / thấp (▼) hơn tháng đó bao nhiêu % khi so tới cùng ngày thứ ${n + 1}.`;
 }
 
     </script>

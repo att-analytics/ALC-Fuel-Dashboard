@@ -1299,6 +1299,10 @@ function teamLabel(t) {
     if (t === 'Khác') return 'Khác (ngoài danh mục)';
     return String(t).toLowerCase().replace(/(^|\s)(\S)/, (m, a, b) => a + b.toUpperCase()).replace(/\bnm\b/, 'NM').replace(/\b(\d+)\b/, '$1');
 }
+// Đội không cần đảm bảo sản lượng khai thác (Hỗ trợ, Trực nhà máy): không đưa vào cảnh báo xe ít lệnh / ít cont / nghỉ chạy
+const NON_PROD_TEAM = t => /HỖ TRỢ|HO TRO|TRỰC|TRUC/.test(String(t || '').toUpperCase());
+// Xe cần theo dõi sản lượng: có trong Data box và không thuộc đội Hỗ trợ / Trực NM
+const isProdVehicle = bs => !!VEH_TEAM_MAP[bs] && !NON_PROD_TEAM(VEH_TEAM_MAP[bs]);
 function teamOptionsHtml(allText) {
     const extra = LEADER_ORDERS.some(r => r.doi === 'Khác') ? ['Khác'] : [];
     return `<option value="ALL">${allText}</option>` + [...TEAM_LIST, ...extra].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(teamLabel(t))}</option>`).join('');
@@ -2936,10 +2940,11 @@ function renderLeaderTab(isWeekMode, ySel, pStart, pEnd, wStart, wEnd, custSel, 
         if (down.length) chips.push({ level: 'bad', tag: 'Khách hàng giảm', html: down.map(m => `<b>${escapeHtml(m.kh)}</b> ▼${Math.round(Math.abs(m.p))}%`).join(', ') + ` <span class="txt-muted">(${escapeHtml(lastName)}, theo ${unit})</span>` });
         if (up.length) chips.push({ level: 'good', tag: 'Khách hàng tăng', html: up.map(m => `<b>${escapeHtml(m.kh)}</b> ▲${Math.round(m.p)}%`).join(', ') });
     }
-    const vehTotals = Object.values(byVehicle).map(v => v.total).sort((a, b) => a - b);
+    const prodVeh = Object.values(byVehicle).filter(v => isProdVehicle(v.bs));
+    const vehTotals = prodVeh.map(v => v.total).sort((a, b) => a - b);
     if (vehTotals.length >= 6) {
         const median = vehTotals[Math.floor(vehTotals.length / 2)];
-        const low = Object.values(byVehicle).filter(v => v.total < median * 0.5).sort((a, b) => a.total - b.total);
+        const low = prodVeh.filter(v => v.total < median * 0.5).sort((a, b) => a.total - b.total);
         if (low.length && median > 0) chips.push({ level: 'warn', tag: LEADER_METRIC === 'cont' ? 'Xe ít cont' : 'Xe ít lệnh', html: `<b>${low.length} xe</b> dưới 50% trung vị (${formatNum(median)} ${unit}): ` + low.slice(0, 4).map(v => `${escapeHtml(v.bs)} (${formatNum(v.total)})`).join(', ') + (low.length > 4 ? '…' : '') });
     }
     if (!isWeekMode && timeKeys.length) {
@@ -3821,7 +3826,7 @@ function renderExecReport() {
     // KPI
     const kpi = (label, val, unit, sub, d1, d2) => `<div class="exec-kpi"><div class="k-l">${label}</div><div class="k-v">${val}<small>${unit}</small></div>${sub ? `<div class="k-s">${sub}</div>` : ''}${d1}${d2}</div>`;
     document.getElementById('execKpis').innerHTML = [
-        kpi('Sản lượng cont', fmt1(S.cont).replace(/,0$/, ''), 'cont', `${fmt1(S.contPerDay)} cont/ngày`,
+        kpi('Sản lượng cont', formatNum(Math.round(S.cont)), 'cont', `${formatNum(Math.round(S.contPerDay))} cont/ngày`,
             P ? execDelta(S.cont, P.cont, prevLbl) : execDelta(0, 0, execShort(mode, prevK)), Y ? execDelta(S.cont, Y.cont, lyLbl) : ''),
         kpi('Lệnh hoàn thành', formatNum(S.total), 'lệnh', `${formatNum(S.h)} có hàng · ${formatNum(S.r)} rỗng`,
             P ? execDelta(S.total, P.total, prevLbl) : '', Y ? execDelta(S.total, Y.total, lyLbl) : ''),
@@ -3842,9 +3847,9 @@ function renderExecReport() {
     const chg = (a, b) => { const p = execPct(a, b); return p == null ? '<span class="muted">mới</span>' : `<span class="${p >= 0 ? 'good' : 'bad'}">${p >= 0 ? '▲' : '▼'} ${Math.round(Math.abs(p))}%</span>`; };
     const share = v => S.cont ? `${Math.round(v / S.cont * 100)}%` : '–';
     document.getElementById('execCustTable').innerHTML = `<thead><tr><th>Khách hàng</th><th class="num">Cont</th><th class="num">Tỷ trọng</th><th class="num">± ${escapeHtml(execShort(mode, prevK))}</th></tr></thead><tbody>`
-        + top.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="num">${fmtCont(Math.round(v * 10) / 10)}</td><td class="num">${share(v)}</td><td class="num">${P ? chg(v, cp[k] || 0) : '–'}</td></tr>`).join('')
-        + (restVal ? `<tr class="sub"><td>${custSorted.length - 5} khách hàng khác</td><td class="num">${fmtCont(Math.round(restVal * 10) / 10)}</td><td class="num">${share(restVal)}</td><td class="num">${P ? chg(restVal, restPrev) : '–'}</td></tr>` : '')
-        + `<tr class="tot"><td>Tổng (${custSorted.length} khách hàng)</td><td class="num">${fmtCont(Math.round(S.cont * 10) / 10)}</td><td class="num">100%</td><td class="num">${P ? chg(S.cont, P.cont) : '–'}</td></tr></tbody>`;
+        + top.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="num">${formatNum(Math.round(v))}</td><td class="num">${share(v)}</td><td class="num">${P ? chg(v, cp[k] || 0) : '–'}</td></tr>`).join('')
+        + (restVal ? `<tr class="sub"><td>${custSorted.length - 5} khách hàng khác</td><td class="num">${formatNum(Math.round(restVal))}</td><td class="num">${share(restVal)}</td><td class="num">${P ? chg(restVal, restPrev) : '–'}</td></tr>` : '')
+        + `<tr class="tot"><td>Tổng (${custSorted.length} khách hàng)</td><td class="num">${formatNum(Math.round(S.cont))}</td><td class="num">100%</td><td class="num">${P ? chg(S.cont, P.cont) : '–'}</td></tr></tbody>`;
 
     // Loại lệnh
     const cmd = {};
@@ -3858,26 +3863,27 @@ function renderExecReport() {
 
     // Đội xe
     const teams = team === 'ALL' ? [...TEAM_LIST, 'Khác'] : [team];
-    const teamRow = (name, list, plist, nFleet) => { const t = leaderStats(list), p = plist.length ? leaderStats(plist) : null; return `<tr><td>${escapeHtml(name)}</td><td class="num">${formatNum(t.uniqVeh)}${nFleet ? `<span class="muted">/${nFleet}</span>` : ''}</td><td class="num">${fmt1(t.vehPerDay)}</td><td class="num">${fmtCont(Math.round(t.cont * 10) / 10)}</td><td class="num">${fmt2(t.contPerVehDay)}</td><td class="num">${p ? chg(t.contPerVehDay, p.contPerVehDay) : '–'}</td></tr>`; };
+    const teamRow = (name, list, plist, nFleet) => { const t = leaderStats(list), p = plist.length ? leaderStats(plist) : null; return `<tr><td>${escapeHtml(name)}</td><td class="num">${formatNum(t.uniqVeh)}${nFleet ? `<span class="muted">/${nFleet}</span>` : ''}</td><td class="num">${fmt1(t.vehPerDay)}</td><td class="num">${formatNum(Math.round(t.cont))}</td><td class="num">${fmt2(t.contPerVehDay)}</td><td class="num">${p ? chg(t.contPerVehDay, p.contPerVehDay) : '–'}</td></tr>`; };
     const inTeam = (t, r) => t === 'Khác' ? !TEAM_LIST.includes(r.doi) : r.doi === t;
     document.getElementById('execTeamTable').innerHTML = `<thead><tr><th>Đội</th><th class="num" title="Số xe có lệnh / số xe trong danh mục Data box">Xe chạy/DM</th><th class="num">Xe/ngày</th><th class="num">Cont</th><th class="num">Cont/xe/ngày</th><th class="num" title="Năng suất so với ${escapeHtml(execShort(mode, prevK))}">± ${escapeHtml(execShort(mode, prevK))}</th></tr></thead><tbody>`
         + teams.map(t => { const l = cur.filter(r => inTeam(t, r)); return l.length ? teamRow(t === 'Khác' ? 'Khác (ngoài DM)' : teamLabel(t), l, prev.filter(r => inTeam(t, r)), fleetOf(t)) : ''; }).join('')
-        + (teams.length > 1 ? `<tr class="tot"><td>Tổng</td><td class="num">${formatNum(S.uniqVeh)}<span class="muted">/${fleetOf('ALL')}</span></td><td class="num">${fmt1(S.vehPerDay)}</td><td class="num">${fmtCont(Math.round(S.cont * 10) / 10)}</td><td class="num">${fmt2(S.contPerVehDay)}</td><td class="num">${P ? chg(S.contPerVehDay, P.contPerVehDay) : '–'}</td></tr>` : '') + '</tbody>';
+        + (teams.length > 1 ? `<tr class="tot"><td>Tổng</td><td class="num">${formatNum(S.uniqVeh)}<span class="muted">/${fleetOf('ALL')}</span></td><td class="num">${fmt1(S.vehPerDay)}</td><td class="num">${formatNum(Math.round(S.cont))}</td><td class="num">${fmt2(S.contPerVehDay)}</td><td class="num">${P ? chg(S.contPerVehDay, P.contPerVehDay) : '–'}</td></tr>` : '') + '</tbody>';
 
     // Cần chú ý: xe nghỉ ≥ 3 ngày (tính tới ngày cuối của kỳ đã có dữ liệu) và xe năng suất thấp
     const refDate = open ? latest : endDate;
     const lastByVeh = {};
-    rows.forEach(({ r, d }) => { if (r.bs && d <= refDate && (refDate - d) <= 30 * EXEC_DAY) { if (!lastByVeh[r.bs] || d > lastByVeh[r.bs]) lastByVeh[r.bs] = d; } });
+    rows.forEach(({ r, d }) => { if (r.bs && isProdVehicle(r.bs) && d <= refDate && (refDate - d) <= 30 * EXEC_DAY) { if (!lastByVeh[r.bs] || d > lastByVeh[r.bs]) lastByVeh[r.bs] = d; } });
     const idle = Object.entries(lastByVeh).map(([bs, d]) => [bs, Math.round((refDate - d) / EXEC_DAY)]).filter(x => x[1] >= 3).sort((a, b) => b[1] - a[1]);
     const perVeh = {};
-    cur.forEach(r => { if (!r.bs) return; const v = perVeh[r.bs] || (perVeh[r.bs] = { cont: 0, days: new Set(), doi: r.doi }); v.cont += Number(r.sc || 0); v.days.add(r.ht); });
+    cur.forEach(r => { if (!r.bs || !isProdVehicle(r.bs)) return; const v = perVeh[r.bs] || (perVeh[r.bs] = { cont: 0, days: new Set(), doi: r.doi }); v.cont += Number(r.sc || 0); v.days.add(r.ht); });
     const minDays = Math.min(3, cutoff + 1);
     const vehList = Object.entries(perVeh).filter(([, v]) => v.days.size >= minDays).map(([bs, v]) => ({ bs, doi: v.doi, perDay: v.cont / v.days.size, days: v.days.size }));
     const low = vehList.sort((a, b) => a.perDay - b.perDay).slice(0, 5);
     document.getElementById('execWatch').innerHTML =
         `<div class="exec-watch-h">${idle.length ? `<b>${idle.length} xe</b> không có lệnh từ 3 ngày trở lên (tính đến ${dShort(refDate)})` : `Không có xe nào nghỉ từ 3 ngày trở lên (tính đến ${dShort(refDate)})`}</div>`
         + (idle.length ? `<div class="exec-chips">${idle.slice(0, 10).map(([bs, n]) => `<span>${escapeHtml(bs)} · ${n} ngày</span>`).join('')}${idle.length > 10 ? `<span>+${idle.length - 10} xe</span>` : ''}</div>` : '')
-        + (low.length ? `<div class="exec-watch-h" style="margin-top:8px;">5 xe năng suất thấp nhất ${unitP} này (cont/ngày chạy)</div><div class="exec-chips">${low.map(v => `<span>${escapeHtml(v.bs)} · ${fmt1(v.perDay)} (${v.days} ngày)</span>`).join('')}</div>` : '');
+        + (low.length ? `<div class="exec-watch-h" style="margin-top:8px;">5 xe năng suất thấp nhất ${unitP} này (cont/ngày chạy)</div><div class="exec-chips">${low.map(v => `<span>${escapeHtml(v.bs)} · ${fmt1(v.perDay)} (${v.days} ngày)</span>`).join('')}</div>` : '')
+        + `<div class="exec-foot-note">Không tính xe đội Hỗ trợ, Trực NM và xe ngoài danh mục Data box.</div>`;
 
     // Biểu đồ xu hướng: 8 tuần / 6 kỳ gần nhất tới kỳ đang chọn
     const idx = keys.indexOf(key), nT = mode === 'week' ? 8 : 6;
@@ -3888,11 +3894,11 @@ function renderExecReport() {
     const traces = [{
         x: trendKeys.map(k => execShort(mode, k)), y: tv, type: 'bar', name: execShort(mode, key).slice(0, 4) === 'Tuần' ? 'Sản lượng' : 'Sản lượng',
         marker: { color: trendKeys.map(k => k === key ? C.s1 : '#B9D7EA') },
-        text: tv.map((v, i) => formatNum(v) + (trendKeys[i] === key && open ? `<br><span style="font-size:10px">đến ${dShort(latest)}</span>` : '')),
+        text: tv.map((v, i) => formatNum(Math.round(v)) + (trendKeys[i] === key && open ? `<br><span style="font-size:10px">đến ${dShort(latest)}</span>` : '')),
         textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
-        hovertemplate: '%{x}: <b>%{y:,.1f}</b> cont<extra></extra>'
+        hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont<extra></extra>'
     }];
-    if (lyv.some(v => v > 0)) traces.push({ x: traces[0].x, y: lyv, type: 'scatter', mode: 'lines+markers', name: 'Cùng kỳ năm trước', line: { color: '#64748B', width: 1.5, dash: 'dot' }, marker: { size: 6 }, hovertemplate: 'Năm trước · %{x}: <b>%{y:,.1f}</b> cont<extra></extra>' });
+    if (lyv.some(v => v > 0)) traces.push({ x: traces[0].x, y: lyv, type: 'scatter', mode: 'lines+markers', name: 'Cùng kỳ năm trước', line: { color: '#64748B', width: 1.5, dash: 'dot' }, marker: { size: 6 }, hovertemplate: 'Năm trước · %{x}: <b>%{y:,.0f}</b> cont<extra></extra>' });
     document.getElementById('execTrendTitle').innerText = `3. Sản lượng cont ${nT} ${unitP} gần nhất`;
     Plotly.react('chartExecTrend', traces, baseLayout({ margin: { t: 24, l: 44, r: 10, b: 30 }, showlegend: traces.length > 1, legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 11 } }, yaxis: { range: [0, Math.max(...tv, ...lyv, 1) * 1.28] } }), PLOTLY_CFG);
 
@@ -3902,15 +3908,15 @@ function renderExecReport() {
     const wd = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     const xl = Array.from({ length: len }, (_, i) => { const d = new Date(start.getTime() + i * EXEC_DAY); return mode === 'week' ? `${wd[d.getDay()]} ${dShort(d)}` : dShort(d); });
     Plotly.react('chartExecDaily', [
-        { x: xl.slice(0, dc.length), y: dc, type: 'bar', name: execShort(mode, key), marker: { color: C.s1 }, text: mode === 'week' ? dc.map(v => v ? formatNum(v) : '') : undefined, textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false, hovertemplate: '%{x}: <b>%{y:,.1f}</b> cont<extra></extra>' },
-        { x: xl.slice(0, Math.min(len, dp.length)), y: dp.slice(0, len), type: 'scatter', mode: 'lines+markers', name: execShort(mode, prevK), line: { color: '#94A3B8', width: 1.5 }, marker: { size: 5 }, customdata: dp.slice(0, len).map((_, i) => dShort(new Date(execStart(mode, prevK).getTime() + i * EXEC_DAY))), hovertemplate: `${execShort(mode, prevK)} · %{customdata}: <b>%{y:,.1f}</b> cont<extra></extra>` }
+        { x: xl.slice(0, dc.length), y: dc, type: 'bar', name: execShort(mode, key), marker: { color: C.s1 }, text: mode === 'week' ? dc.map(v => v ? formatNum(Math.round(v)) : '') : undefined, textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false, hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont<extra></extra>' },
+        { x: xl.slice(0, Math.min(len, dp.length)), y: dp.slice(0, len), type: 'scatter', mode: 'lines+markers', name: execShort(mode, prevK), line: { color: '#94A3B8', width: 1.5 }, marker: { size: 5 }, customdata: dp.slice(0, len).map((_, i) => dShort(new Date(execStart(mode, prevK).getTime() + i * EXEC_DAY))), hovertemplate: `${execShort(mode, prevK)} · %{customdata}: <b>%{y:,.0f}</b> cont<extra></extra>` }
     ], baseLayout({ margin: { t: 24, l: 40, r: 10, b: 30 }, showlegend: true, legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 11 } }, xaxis: { tickangle: 0, nticks: mode === 'week' ? 7 : 11 }, yaxis: { range: [0, Math.max(...dc, ...dp, 1) * 1.22] } }), PLOTLY_CFG);
     document.getElementById('execDailyTitle').innerText = `Cont từng ngày · so với ${execShort(mode, prevK)} theo ngày thứ N`;
 
     // Tóm tắt tự viết
     const sum = [];
     const pc = P ? execPct(S.cont, P.cont) : null, yc = Y ? execPct(S.cont, Y.cont) : null;
-    sum.push(`${open ? `Tính đến ${dShort(latest)}` : `Cả ${unitP}`}, đội xe đạt <b>${fmtCont(Math.round(S.cont * 10) / 10)} cont</b> với <b>${formatNum(S.total)} lệnh</b>`
+    sum.push(`${open ? `Tính đến ${dShort(latest)}` : `Cả ${unitP}`}, đội xe đạt <b>${formatNum(Math.round(S.cont))} cont</b> với <b>${formatNum(S.total)} lệnh</b>`
         + (pc != null ? `, ${pc >= 0 ? 'tăng' : 'giảm'} <b>${fmt1(Math.abs(pc))}%</b> so với ${escapeHtml(prevLbl)}` : '')
         + (yc != null ? ` và ${yc >= 0 ? 'tăng' : 'giảm'} ${fmt1(Math.abs(yc))}% so với ${escapeHtml(lyLbl)}` : '') + '.');
     sum.push(`Bình quân <b>${fmt1(S.vehPerDay)} xe chạy mỗi ngày</b>, năng suất <b>${fmt2(S.contPerVehDay)} cont/xe/ngày</b>`
@@ -3918,7 +3924,7 @@ function renderExecReport() {
     if (P) {
         const diffs = Object.keys({ ...cc, ...cp }).map(k => [k, (cc[k] || 0) - (cp[k] || 0)]).filter(x => Math.abs(x[1]) >= 1).sort((a, b) => b[1] - a[1]);
         const up = diffs[0] && diffs[0][1] > 0 ? diffs[0] : null, dn = diffs.length && diffs[diffs.length - 1][1] < 0 ? diffs[diffs.length - 1] : null;
-        if (up || dn) sum.push('Biến động khách hàng: ' + [up ? `<b>${escapeHtml(up[0])}</b> tăng ${fmtCont(Math.round(up[1] * 10) / 10)} cont` : '', dn ? `<b>${escapeHtml(dn[0])}</b> giảm ${fmtCont(Math.round(-dn[1] * 10) / 10)} cont` : ''].filter(Boolean).join('; ') + '.');
+        if (up || dn) sum.push('Biến động khách hàng: ' + [up ? `<b>${escapeHtml(up[0])}</b> tăng ${formatNum(Math.round(up[1]))} cont` : '', dn ? `<b>${escapeHtml(dn[0])}</b> giảm ${formatNum(Math.round(-dn[1]))} cont` : ''].filter(Boolean).join('; ') + '.');
     }
     if (top.length) sum.push(`Khách hàng lớn nhất: <b>${escapeHtml(top[0][0])}</b> (${share(top[0][1])} sản lượng); top 5 chiếm ${share(top.reduce((a, x) => a + x[1], 0))}.`);
     if (idle.length) sum.push(`Cần chú ý: ${idle.length} xe không có lệnh từ 3 ngày trở lên (xem mục 5).`);

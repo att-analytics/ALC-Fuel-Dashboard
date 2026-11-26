@@ -518,9 +518,6 @@ body.exec-printing .exec-chart-sm { height: 200px; }
                         <label>Đội xe</label>
                         <select id="selTeam" onchange="onTeamFilterChange()">
                             <option value="ALL">Tất cả</option>
-                            <option value="ĐỘI 1">Đội 1</option>
-                            <option value="ĐỘI 2">Đội 2</option>
-                            <option value="Khác">Khác</option>
                         </select>
                     </div>
                     <div class="filter-group" id="boxFilterVehicle">
@@ -729,8 +726,6 @@ body.exec-printing .exec-chart-sm { height: 200px; }
                 <select id="selExecPeriod" class="tool-input" onchange="renderExecReport()"></select>
                 <select id="selExecTeam" class="tool-input" onchange="renderExecReport()">
                     <option value="ALL">Tất cả đội xe</option>
-                    <option value="ĐỘI 1">Đội 1</option>
-                    <option value="ĐỘI 2">Đội 2</option>
                 </select>
                 <div style="flex:1;"></div>
                 <button class="tool-btn" id="btnExecPresent" onclick="toggleExecPresent()">Trình chiếu</button>
@@ -1297,7 +1292,24 @@ const KPI_LABELS = {
 
 let YEAR_DATA = [], WEEK_DATA = [], LEADER_ORDERS = [], FUEL_TX = [], PRICE_BY_KY = {}, STATION_PRICE_EVENTS = [], MAINT_ROWS = [];
 let CURRENT_FILTERED_LEADER_ORDERS = [], CURRENT_STD_TABLE_DATA = [], CURRENT_STD_IS_WEEK = false, CURRENT_STD_MODE = 'fuel';
-let TEAM1_VEHICLES = [], ALL_VEHICLES = [], VEH_TEAM_MAP = {}, MAX_DATE_GPS = "N/A";
+let TEAM1_VEHICLES = [], ALL_VEHICLES = [], VEH_TEAM_MAP = {}, TEAM_LIST = [], MAX_DATE_GPS = "N/A";
+// Tên hiển thị của đội xe (cột ĐỘI XE trong Data box): "ĐỘI 1" -> "Đội 1", "TRỰC NM" -> "Trực NM"
+function teamLabel(t) {
+    if (!t || t === 'ALL') return 'Tất cả đội xe';
+    if (t === 'Khác') return 'Khác (ngoài danh mục)';
+    return String(t).toLowerCase().replace(/(^|\s)(\S)/, (m, a, b) => a + b.toUpperCase()).replace(/\bnm\b/, 'NM').replace(/\b(\d+)\b/, '$1');
+}
+function teamOptionsHtml(allText) {
+    const extra = LEADER_ORDERS.some(r => r.doi === 'Khác') ? ['Khác'] : [];
+    return `<option value="ALL">${allText}</option>` + [...TEAM_LIST, ...extra].map(t => `<option value="${escapeHtml(t)}">${escapeHtml(teamLabel(t))}</option>`).join('');
+}
+function fillTeamSelects() {
+    [['selTeam', 'Tất cả'], ['selExecTeam', 'Tất cả đội xe']].forEach(([id, txt]) => {
+        const el = document.getElementById(id); if (!el) return;
+        const keep = el.value; el.innerHTML = teamOptionsHtml(txt);
+        el.value = [...el.options].some(o => o.value === keep) ? keep : 'ALL';
+    });
+}
 let DATA_CHECKS = { sources: [], items: [], counts: {} }, CHECK_FILTER = 'all';
 const MAX_WEEKS = 8;
 function noteWeekLimit(nInRange) {
@@ -1442,6 +1454,8 @@ function hydrateDashboardPayload(payload) {
     TEAM1_VEHICLES = payload.TEAM1_VEHICLES || [];
     ALL_VEHICLES = payload.ALL_VEHICLES || [];
     VEH_TEAM_MAP = payload.VEH_TEAM_MAP || {};
+    TEAM_LIST = payload.TEAM_LIST && payload.TEAM_LIST.length ? payload.TEAM_LIST : [...new Set(Object.values(VEH_TEAM_MAP).filter(t => t && t !== 'Khác'))];
+    fillTeamSelects();
     MAX_DATE_GPS = payload.MAX_DATE_GPS || "N/A";
     DATA_CHECKS = payload.DATA_CHECKS || { sources: [], items: [], counts: {} };
     const lineSel = document.getElementById('selLine');
@@ -3773,7 +3787,8 @@ function renderExecReport() {
     }
     const key = sel.value;
     const team = document.getElementById('selExecTeam').value;
-    const teamName = team === 'ALL' ? 'Tất cả đội xe' : (team === 'ĐỘI 1' ? 'Đội 1' : 'Đội 2');
+    const teamName = teamLabel(team);
+    const fleetOf = t => t === 'Khác' ? 0 : Object.values(VEH_TEAM_MAP).filter(x => t === 'ALL' ? TEAM_LIST.includes(x) : x === t).length;
 
     // Dữ liệu theo đội + ngày
     let latest = null;
@@ -3810,7 +3825,7 @@ function renderExecReport() {
             P ? execDelta(S.cont, P.cont, prevLbl) : execDelta(0, 0, execShort(mode, prevK)), Y ? execDelta(S.cont, Y.cont, lyLbl) : ''),
         kpi('Lệnh hoàn thành', formatNum(S.total), 'lệnh', `${formatNum(S.h)} có hàng · ${formatNum(S.r)} rỗng`,
             P ? execDelta(S.total, P.total, prevLbl) : '', Y ? execDelta(S.total, Y.total, lyLbl) : ''),
-        kpi('Xe hoạt động / ngày', fmt1(S.vehPerDay), 'xe', `${formatNum(S.uniqVeh)} đầu xe có chạy`,
+        kpi('Xe hoạt động / ngày', fmt1(S.vehPerDay), 'xe', `${formatNum(S.uniqVeh)} đầu xe có chạy${fleetOf(team) ? ` / ${formatNum(fleetOf(team))} xe danh mục` : ''}`,
             P ? execDelta(S.vehPerDay, P.vehPerDay, prevLbl) : '', Y ? execDelta(S.vehPerDay, Y.vehPerDay, lyLbl) : ''),
         kpi('Năng suất', fmt2(S.contPerVehDay), 'cont/xe/ngày', `trên ${formatNum(S.vehDays)} ngày-xe`,
             P ? execDelta(S.contPerVehDay, P.contPerVehDay, prevLbl) : '', Y ? execDelta(S.contPerVehDay, Y.contPerVehDay, lyLbl) : ''),
@@ -3842,12 +3857,12 @@ function renderExecReport() {
         + (cmdRest ? `<tr class="sub"><td>Loại khác</td><td class="num">${formatNum(cmdRest)}</td><td class="num">${Math.round(cmdRest / S.total * 100)}%</td><td></td></tr>` : '') + '</tbody>';
 
     // Đội xe
-    const teams = team === 'ALL' ? ['ĐỘI 1', 'ĐỘI 2', 'Khác'] : [team];
-    const teamRow = (name, list, plist) => { const t = leaderStats(list), p = plist.length ? leaderStats(plist) : null; return `<tr><td>${escapeHtml(name)}</td><td class="num">${formatNum(t.uniqVeh)}</td><td class="num">${fmt1(t.vehPerDay)}</td><td class="num">${fmtCont(Math.round(t.cont * 10) / 10)}</td><td class="num">${fmt2(t.contPerVehDay)}</td><td class="num">${p ? chg(t.contPerVehDay, p.contPerVehDay) : '–'}</td></tr>`; };
-    const inTeam = (t, r) => t === 'Khác' ? (r.doi !== 'ĐỘI 1' && r.doi !== 'ĐỘI 2') : r.doi === t;
-    document.getElementById('execTeamTable').innerHTML = `<thead><tr><th>Đội</th><th class="num">Đầu xe</th><th class="num">Xe/ngày</th><th class="num">Cont</th><th class="num">Cont/xe/ngày</th><th class="num" title="Năng suất so với ${escapeHtml(execShort(mode, prevK))}">± ${escapeHtml(execShort(mode, prevK))}</th></tr></thead><tbody>`
-        + teams.map(t => { const l = cur.filter(r => inTeam(t, r)); return l.length ? teamRow(t === 'Khác' ? 'Khác' : t.replace('ĐỘI', 'Đội'), l, prev.filter(r => inTeam(t, r))) : ''; }).join('')
-        + (teams.length > 1 ? `<tr class="tot"><td>Tổng</td><td class="num">${formatNum(S.uniqVeh)}</td><td class="num">${fmt1(S.vehPerDay)}</td><td class="num">${fmtCont(Math.round(S.cont * 10) / 10)}</td><td class="num">${fmt2(S.contPerVehDay)}</td><td class="num">${P ? chg(S.contPerVehDay, P.contPerVehDay) : '–'}</td></tr>` : '') + '</tbody>';
+    const teams = team === 'ALL' ? [...TEAM_LIST, 'Khác'] : [team];
+    const teamRow = (name, list, plist, nFleet) => { const t = leaderStats(list), p = plist.length ? leaderStats(plist) : null; return `<tr><td>${escapeHtml(name)}</td><td class="num">${formatNum(t.uniqVeh)}${nFleet ? `<span class="muted">/${nFleet}</span>` : ''}</td><td class="num">${fmt1(t.vehPerDay)}</td><td class="num">${fmtCont(Math.round(t.cont * 10) / 10)}</td><td class="num">${fmt2(t.contPerVehDay)}</td><td class="num">${p ? chg(t.contPerVehDay, p.contPerVehDay) : '–'}</td></tr>`; };
+    const inTeam = (t, r) => t === 'Khác' ? !TEAM_LIST.includes(r.doi) : r.doi === t;
+    document.getElementById('execTeamTable').innerHTML = `<thead><tr><th>Đội</th><th class="num" title="Số xe có lệnh / số xe trong danh mục Data box">Xe chạy/DM</th><th class="num">Xe/ngày</th><th class="num">Cont</th><th class="num">Cont/xe/ngày</th><th class="num" title="Năng suất so với ${escapeHtml(execShort(mode, prevK))}">± ${escapeHtml(execShort(mode, prevK))}</th></tr></thead><tbody>`
+        + teams.map(t => { const l = cur.filter(r => inTeam(t, r)); return l.length ? teamRow(t === 'Khác' ? 'Khác (ngoài DM)' : teamLabel(t), l, prev.filter(r => inTeam(t, r)), fleetOf(t)) : ''; }).join('')
+        + (teams.length > 1 ? `<tr class="tot"><td>Tổng</td><td class="num">${formatNum(S.uniqVeh)}<span class="muted">/${fleetOf('ALL')}</span></td><td class="num">${fmt1(S.vehPerDay)}</td><td class="num">${fmtCont(Math.round(S.cont * 10) / 10)}</td><td class="num">${fmt2(S.contPerVehDay)}</td><td class="num">${P ? chg(S.contPerVehDay, P.contPerVehDay) : '–'}</td></tr>` : '') + '</tbody>';
 
     // Cần chú ý: xe nghỉ ≥ 3 ngày (tính tới ngày cuối của kỳ đã có dữ liệu) và xe năng suất thấp
     const refDate = open ? latest : endDate;
@@ -3987,10 +4002,10 @@ function renderExecMaint(ctx) {
         if (m) { luot = (luot || 0) + +m[1]; luotXe = (luotXe || 0) + +m[2]; if (m[4]) luotDetail = m[4].replace(/\s*;\s*/g, ' · ').trim(); }
     });
 
-    // Xe có lệnh mỗi ngày (Leader, Đội 1 + Đội 2) so với xe sẵn sàng (TLG)
+    // Xe có lệnh mỗi ngày (Leader, các đội trong Data box) so với xe sẵn sàng (TLG)
     const runByDay = {};
     LEADER_ORDERS.forEach(r => {
-        if (r.doi !== 'ĐỘI 1' && r.doi !== 'ĐỘI 2') return;
+        if (!TEAM_LIST.includes(r.doi)) return;
         const d = parseDmy(r.ht); if (!d) return;
         const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         (runByDay[k] || (runByDay[k] = new Set())).add(r.bs);

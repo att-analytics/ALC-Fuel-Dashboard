@@ -599,7 +599,7 @@ body.exec-printing .exec-sec3:not(.month-mode) .exec-chart { height: 150px; }
                         </div>
                     </div>
                     <div class="leader-row1-grid" style="margin-bottom:0;">
-                        <div><div class="chart-sub-title">Lũy kế theo ngày trong kỳ</div><div id="chartLeaderCumul" style="height:330px;"></div></div>
+                        <div><div class="chart-sub-title" id="leaderCumulTitle">Tổng từng kỳ lương</div><div id="chartLeaderCumul" style="height:330px;"></div></div>
                         <div><div class="chart-sub-title" id="leaderSameDayTitle">Tới cùng ngày của các kỳ</div><div id="chartLeaderSameDay" style="height:330px;"></div></div>
                     </div>
                 </div>
@@ -2291,7 +2291,12 @@ function renderLeaderCmdMatrix(colKeys, colHeaders, keyField, rows) {
         return `<tr><td class="strong">${escapeHtml(cmdLabel(cmdName))}</td>${cells}<td class="cmd-tot-cell">${formatNum(rowSum)}</td></tr>`;
     }).join('');
 
-    const contCols = colKeys.map(k => rows.filter(r => r[keyField] === k).reduce((a, r) => a + Number(r.sc || 0), 0));
+    // Cont từng cột theo cùng cách làm tròn với biểu đồ: ngày (dm) hoặc kỳ lương (kl)
+    const contCols = colKeys.map(k => {
+        if (LEADER_RC_CONT && keyField === 'kl') return LEADER_RC_CONT.range(kyStartDate(k), kyEndDate(k));
+        if (LEADER_RC_CONT && keyField === 'dm') { const r0 = rows.find(r => r.dm === k); const d = r0 ? parseDmy(r0.ht) : null; return d ? LEADER_RC_CONT.day(d) : 0; }
+        return Math.round(rows.filter(r => r[keyField] === k).reduce((a, r) => a + Number(r.sc || 0), 0));
+    });
     const contTotal = contCols.reduce((a, b) => a + b, 0);
     tbody.innerHTML = bodyHtml
         + `<tr class="total-row"><td>Tổng lệnh</td>${colTotals.map(c => `<td style="text-align:center;">${formatNum(c)}</td>`).join('')}<td style="text-align:center;">${formatNum(grandTotal)}</td></tr>`
@@ -2337,6 +2342,14 @@ function renderLeaderCustomerCompareTable(timeKeys, rowsInScope, isWeekMode) {
         custMap[cName].total += mv;
     });
 
+    // Số hiển thị: mỗi cột chia đúng bằng tổng tuần / kỳ (cùng cách làm tròn với biểu đồ), dòng Tổng = cộng các ô
+    const names = Object.keys(custMap);
+    timeKeys.forEach(t => {
+        const colTotal = LEADER_RC ? LEADER_RC.range(...leaderPeriodRange(t, isWeekMode)) : Math.round(names.reduce((a, n) => a + (custMap[n].byT[t] || 0), 0));
+        const parts = apportion(names.map(n => custMap[n].byT[t] || 0), colTotal);
+        names.forEach((n, i) => { (custMap[n].shown || (custMap[n].shown = {}))[t] = parts[i]; });
+    });
+    names.forEach(n => { custMap[n].shownTotal = timeKeys.reduce((a, t) => a + (custMap[n].shown[t] || 0), 0); });
     const lastT = timeKeys[timeKeys.length - 1], prevT = timeKeys[timeKeys.length - 2];
     const sortedCusts = Object.entries(custMap).filter(([, info]) => info.total > 0).sort((a, b) => {
         const d1 = (b[1].byT[lastT] || 0) - (a[1].byT[lastT] || 0);
@@ -2355,10 +2368,10 @@ function renderLeaderCustomerCompareTable(timeKeys, rowsInScope, isWeekMode) {
 
     tbody.innerHTML = sortedCusts.map(([cName, info], idx) => {
         const cells = timeKeys.map((tCode, tIdx) => {
-            const val = info.byT[tCode] || 0;
+            const val = info.shown[tCode] || 0;
             let chg = '';
             if (tIdx > 0) {
-                const pv = info.byT[timeKeys[tIdx - 1]] || 0;
+                const pv = info.shown[timeKeys[tIdx - 1]] || 0;
                 if (pv > 0) {
                     const p = (val - pv) / pv * 100;
                     chg = Math.abs(p) < 0.5 ? '<span class="chg txt-muted">0%</span>' : `<span class="chg ${p > 0 ? 'txt-good' : 'txt-bad'}">${p > 0 ? '▲' : '▼'} ${Math.round(Math.abs(p))}%</span>`;
@@ -2366,7 +2379,7 @@ function renderLeaderCustomerCompareTable(timeKeys, rowsInScope, isWeekMode) {
             }
             return `<td style="text-align:center; ${tIdx === timeKeys.length - 1 ? 'font-weight:700; color:#0F172A;' : ''}">${val ? formatNum(val) : '<span class="txt-muted">–</span>'}${chg}</td>`;
         }).join('');
-        return `<tr><td style="text-align:center;" class="txt-muted">${idx + 1}</td><td class="strong">${escapeHtml(cName)}</td>${cells}<td class="cmd-tot-cell">${formatNum(info.total)}</td></tr>`;
+        return `<tr><td style="text-align:center;" class="txt-muted">${idx + 1}</td><td class="strong">${escapeHtml(cName)}</td>${cells}<td class="cmd-tot-cell">${formatNum(info.shownTotal)}</td></tr>`;
     }).join('');
 }
 
@@ -2725,79 +2738,66 @@ function renderStandardTableBody() {
 }
 
 let LEADER_ROW_OK = () => true;
+// Bộ làm tròn theo bộ lọc Điều vận đang chọn: LEADER_RC theo đơn vị đang xem (cont / lệnh), LEADER_RC_CONT luôn là cont
+let LEADER_RC = null, LEADER_RC_CONT = null;
+const leaderPeriodRange = (k, isWeek) => isWeek ? [execStart('week', k), new Date(execStart('week', k).getTime() + 6 * 86400000)] : [kyStartDate(k), kyEndDate(k)];
 const parseDmy = s => { const p = String(s || '').split('/'); return p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]) : null; };
 const kyStartDate = k => new Date(+String(k).slice(3), +String(k).slice(0, 2) - 2, 26);   // 26 tháng trước
 const kyEndDate = k => new Date(+String(k).slice(3), +String(k).slice(0, 2) - 1, 25);
 const dShort = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+const isoDay = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+// Số xe hiển thị: làm tròn xuống, không để số lẻ
+const fmtXe = v => (v == null || !isFinite(v)) ? '–' : formatNum(Math.floor(v + 1e-9));
 
-/** So sánh cùng kỳ: lũy kế theo ngày trong kỳ lương + cột "tới cùng ngày" của tối đa 6 kỳ. Trả về chip nhận xét. */
+/**
+ * Làm tròn sản lượng cont nhất quán giữa ngày – tuần – tháng.
+ * Cont quy đổi có phần lẻ 0,5; làm tròn riêng từng con số thì cộng các ngày sẽ lệch tổng tuần / tháng.
+ * Cách làm: cộng dồn theo ngày, làm tròn số cộng dồn; số của khoảng ngày [a, b] = R(lũy kế tới b) − R(lũy kế trước a).
+ * Nhờ vậy các ngày cộng lại đúng bằng tuần, đúng bằng tháng; chênh so với số thật luôn dưới 1 cont.
+ */
+function buildContRounder(orders, valFn) {
+    const by = {}, val = valFn || (r => Number(r.sc || 0));
+    orders.forEach(r => { const d = parseDmy(r.ht); if (!d) return; const k = isoDay(d); by[k] = (by[k] || 0) + val(r); });
+    const days = Object.keys(by).sort();
+    let c = 0;
+    const R = days.map(k => Math.round((c += by[k]) + 1e-9));
+    const idxLE = iso => { let lo = 0, hi = days.length - 1, ans = -1; while (lo <= hi) { const m = (lo + hi) >> 1; if (days[m] <= iso) { ans = m; lo = m + 1; } else hi = m - 1; } return ans; };
+    const cumLE = iso => { const i = idxLE(iso); return i < 0 ? 0 : R[i]; };
+    const cumLT = iso => { const i = idxLE(iso); if (i < 0) return 0; return days[i] === iso ? (i ? R[i - 1] : 0) : R[i]; };
+    const toIso = d => typeof d === 'string' ? d : isoDay(d);
+    return { range: (a, b) => cumLE(toIso(b)) - cumLT(toIso(a)), day: d => cumLE(toIso(d)) - cumLT(toIso(d)) };
+}
+/** Chia một tổng (đã làm tròn) cho các phần sao cho các phần là số nguyên và cộng lại đúng tổng (phần dư lớn nhất được +1). */
+function apportion(values, total) {
+    const fl = values.map(v => Math.floor(v + 1e-9));
+    let rest = Math.round(total) - fl.reduce((a, b) => a + b, 0);
+    const order = values.map((v, i) => [v - Math.floor(v + 1e-9), i]).sort((a, b) => b[0] - a[0]);
+    for (let k = 0; rest > 0 && k < order.length; k++, rest--) fl[order[k][1]] += 1;
+    for (let k = order.length - 1; rest < 0 && k >= 0; k--) { const i = order[k][1]; if (fl[i] > 0) { fl[i] -= 1; rest++; } }
+    return fl;
+}
+
+/** So sánh cùng kỳ (trang Báo cáo tháng): tổng từng kỳ + tới cùng ngày thứ N của 6 kỳ gần nhất. Trả về chip nhận xét. */
 function renderLeaderSamePeriod(curKy) {
     const unit = metricUnit();
-    const allK = [...new Set(LEADER_ORDERS.map(r => r.kl))].filter(Boolean).sort((a, b) => kyKey(a).localeCompare(kyKey(b)));
-    const idx = allK.indexOf(curKy);
-    if (idx < 0) { emptyChart('chartLeaderCumul', 'Chưa có dữ liệu'); emptyChart('chartLeaderSameDay', ''); return null; }
-    const comps = allK.slice(Math.max(0, idx - 5), idx + 1);
-    const series = {};
-    comps.forEach(k => { const len = Math.round((kyEndDate(k) - kyStartDate(k)) / 86400000) + 1; series[k] = { len, daily: new Array(len).fill(0) }; });
     let latest = null;
-    LEADER_ORDERS.forEach(r => {
-        const d = parseDmy(r.ht);
-        if (d && (!latest || d > latest)) latest = d;
-        const sr = series[r.kl];
-        if (!sr || !d || !LEADER_ROW_OK(r)) return;
-        const off = Math.round((d - kyStartDate(r.kl)) / 86400000);
-        if (off >= 0 && off < sr.len) sr.daily[off] += orderMetric(r);
-    });
-    Object.values(series).forEach(sr => { let c = 0; sr.cum = sr.daily.map(v => (c += v)); });
-    const cur = series[curKy];
-    const curOpen = latest && latest >= kyStartDate(curKy) && latest < kyEndDate(curKy);
-    const cutoff = curOpen ? Math.round((latest - kyStartDate(curKy)) / 86400000) : cur.len - 1;
-    const cutDate = new Date(kyStartDate(curKy).getTime() + cutoff * 86400000);
-    const name = k => 'T' + String(k).slice(0, 2) + '/' + String(k).slice(5);
-    const prevK = comps[comps.length - 2];
-    const colorOf = k => k === curKy ? C.s1 : (k === prevK ? C.s2 : '#CBD5E1');
-
-    // Lũy kế theo ngày
-    const maxLen = Math.max(...comps.map(k => series[k].len));
-    const tickvals = [], ticktext = [];
-    for (let i = 0; i < maxLen; i += 5) { tickvals.push(i + 1); ticktext.push(dShort(new Date(kyStartDate(curKy).getTime() + i * 86400000))); }
-    const traces = comps.map(k => {
-        const sr = series[k], upto = k === curKy ? cutoff + 1 : sr.len;
-        return {
-            x: Array.from({ length: upto }, (_, i) => i + 1), y: sr.cum.slice(0, upto), name: name(k), type: 'scatter', mode: 'lines',
-            line: { color: colorOf(k), width: k === curKy ? 3 : (k === prevK ? 2 : 1.5) },
-            customdata: Array.from({ length: upto }, (_, i) => dShort(new Date(kyStartDate(k).getTime() + i * 86400000))),
-            hovertemplate: `${name(k)} · %{customdata}: <b>%{y:,.0f}</b> ${unit}<extra></extra>`
-        };
-    }).reverse();
-    Plotly.react('chartLeaderCumul', traces, baseLayout({
-        showlegend: true, legend: { orientation: 'h', y: 1.12, x: 0, font: { size: 11.5 } }, margin: { t: 30, l: 52, r: 16, b: 40 },
-        xaxis: { tickvals, ticktext, title: { text: `Ngày trong kỳ (theo lịch kỳ ${name(curKy)})`, font: { size: 11, color: '#64748B' } } },
-        yaxis: { title: { text: unit === 'cont' ? 'Cont lũy kế' : 'Lệnh lũy kế', font: { size: 11, color: '#64748B' } } },
-        shapes: curOpen ? [{ type: 'line', x0: cutoff + 1, x1: cutoff + 1, yref: 'paper', y0: 0, y1: 1, line: { color: '#94A3B8', width: 1, dash: 'dot' } }] : [],
-        annotations: curOpen ? [{ x: cutoff + 1, yref: 'paper', y: 1, text: `ngày ${cutoff + 1} (${dShort(cutDate)})`, showarrow: false, xanchor: 'left', yanchor: 'bottom', font: { size: 11, color: '#475569' } }] : []
-    }), PLOTLY_CFG);
-
-    // Tới cùng ngày
-    const vals = comps.map(k => series[k].cum[Math.min(cutoff, series[k].len - 1)]);
-    const curVal = vals[vals.length - 1];
-    document.getElementById('leaderSameDayTitle').innerText = curOpen ? `Tới ngày thứ ${cutoff + 1} của kỳ (cùng mốc ${dShort(cutDate)})` : 'Cả kỳ';
-    Plotly.react('chartLeaderSameDay', [{
-        x: comps.map(name), y: vals, type: 'bar', marker: { color: comps.map(colorOf) },
-        text: vals.map((v, i) => i === vals.length - 1 || !v ? formatNum(v) : `${formatNum(v)}<br><span style="font-size:10px">${curVal >= v ? '▲' : '▼'}${Math.round(Math.abs(curVal - v) / v * 100)}%</span>`),
-        textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
-        customdata: comps.map(k => dShort(new Date(kyStartDate(k).getTime() + Math.min(cutoff, series[k].len - 1) * 86400000))),
-        hovertemplate: `%{x} · tới %{customdata}: <b>%{y:,.0f}</b> ${unit}<extra></extra>`
-    }], baseLayout({ margin: { t: 26, l: 52, r: 16, b: 36 }, yaxis: { range: [0, Math.max(...vals, 1) * 1.25] } }), PLOTLY_CFG);
-    document.getElementById('leaderSameNote').innerText = 'Ô phải: số ở kỳ trước ghi kèm % kỳ hiện tại cao/thấp hơn. Kỳ lương chạy từ ngày 26 tháng trước đến 25; các kỳ được so tại cùng ngày thứ N.';
-
+    LEADER_ORDERS.forEach(r => { const d = parseDmy(r.ht); if (d && (!latest || d > latest)) latest = d; });
+    if (!curKy || !LEADER_RC) { emptyChart('chartLeaderCumul', 'Chưa có dữ liệu'); emptyChart('chartLeaderSameDay', ''); return null; }
+    const e = kyEndDate(curKy), s0 = kyStartDate(curKy);
+    const cutDate = latest && latest >= s0 && latest < e ? latest : e;
+    const res = renderExecMonthCompare(LEADER_RC, curKy, cutDate, { unit, ids: { total: 'chartLeaderCumul', same: 'chartLeaderSameDay', title: 'leaderSameDayTitle', note: null } });
+    if (!res) return null;
+    document.getElementById('leaderCumulTitle').innerText = `Tổng ${unit === 'cont' ? 'sản lượng cont' : 'số lệnh'} từng kỳ lương (6 kỳ gần nhất)`;
+    document.getElementById('leaderSameNote').innerText = `Kỳ lương chạy từ ngày 26 tháng trước đến 25. Biểu đồ phải so các kỳ tới cùng ngày thứ ${res.n + 1}; dấu % trên cột kỳ trước: kỳ hiện tại cao (▲) / thấp (▼) hơn kỳ đó.`;
     // Chip nhận xét
-    const prevVals = vals.slice(0, -1).filter(v => v > 0);
+    const vals = res.list.map(k => res.same[k]);
+    const curVal = vals[vals.length - 1], prevVals = vals.slice(0, -1).filter(v => v > 0);
     if (!prevVals.length || !curVal) return null;
     const pv = vals[vals.length - 2], avg = prevVals.reduce((a, b) => a + b, 0) / prevVals.length;
     const pct = (a, b) => b ? Math.round((a - b) / b * 100) : 0;
     const p1 = pct(curVal, pv), p2 = pct(curVal, avg);
-    return { level: p1 >= 0 ? 'good' : 'bad', tag: 'Cùng kỳ', html: `${name(curKy)} ${curOpen ? `tới ${dShort(cutDate)}` : 'cả kỳ'}: <b>${formatNum(curVal)} ${unit}</b> · ${p1 >= 0 ? '▲' : '▼'}${Math.abs(p1)}% so với ${name(prevK)} cùng mốc (${formatNum(pv)}) · ${p2 >= 0 ? '▲' : '▼'}${Math.abs(p2)}% so với TB ${prevVals.length} kỳ trước (${formatNum(avg)})` };
+    const nm = res.lbl;
+    return { level: p1 >= 0 ? 'good' : 'bad', tag: 'Cùng kỳ', html: `${nm(curKy)} ${res.full ? 'cả kỳ' : `tới ${dShort(cutDate)}`}: <b>${formatNum(curVal)} ${unit}</b> · ${p1 >= 0 ? '▲' : '▼'}${Math.abs(p1)}% so với ${nm(res.prevK)} cùng mốc (${formatNum(pv)}) · ${p2 >= 0 ? '▲' : '▼'}${Math.abs(p2)}% so với TB ${prevVals.length} kỳ trước (${formatNum(avg)})` };
 }
 
 /** Biểu đồ cont + số lệnh từng ngày của tuần đang chọn. */
@@ -2808,7 +2808,9 @@ function renderLeaderDailyChart(targetW, rowsForWeek) {
     if (days.length !== 7) { emptyChart('chartLeaderDaily', 'Chưa có dữ liệu tuần này'); return; }
     const wd = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
     const cont = new Array(7).fill(0), lenh = new Array(7).fill(0);
-    rowsForWeek.forEach(r => { const i = days.indexOf(r.dm); if (i >= 0) { cont[i] += Number(r.sc || 0); lenh[i] += 1; } });
+    rowsForWeek.forEach(r => { const i = days.indexOf(r.dm); if (i >= 0) lenh[i] += 1; });
+    const wStart = execStart('week', targetW);
+    for (let i = 0; i < 7; i++) cont[i] = LEADER_RC_CONT ? LEADER_RC_CONT.day(new Date(wStart.getTime() + i * 86400000)) : 0;
     const x = days.map((d, i) => `${wd[i]} ${d}`);
     const lbl = arr => arr.map(v => v ? formatNum(v) : '');
     Plotly.react('chartLeaderDaily', [
@@ -2848,6 +2850,8 @@ function renderLeaderTab(isWeekMode, ySel, pStart, pEnd, wStart, wEnd, custSel, 
     const selDetailW = document.getElementById('selLeaderDetailWeek');
     const rowOk = r => (custSel === 'ALL' || (r.kh || 'Khác').trim().toUpperCase() === custSel) && (teamSel === 'ALL' || r.doi === teamSel) && (vSel === 'ALL' || r.bs === vSel);
     LEADER_ROW_OK = rowOk;
+    { const f = LEADER_ORDERS.filter(rowOk); LEADER_RC_CONT = buildContRounder(f); LEADER_RC = LEADER_METRIC === 'cont' ? LEADER_RC_CONT : buildContRounder(f, orderMetric); }
+    const contOfKeys = keys => keys.reduce((a, k) => a + LEADER_RC_CONT.range(...leaderPeriodRange(k, isWeekMode)), 0);
     document.getElementById('leaderSamePeriodCard').style.display = isWeekMode ? 'none' : 'block';
     document.getElementById('leaderDailyCard').style.display = isWeekMode ? 'block' : 'none';
 
@@ -2897,14 +2901,15 @@ function renderLeaderTab(isWeekMode, ySel, pStart, pEnd, wStart, wEnd, custSel, 
     const prevOrders = prevKeys.length ? LEADER_ORDERS.filter(r => (isWeekMode ? prevKeys.includes(r.tc) : prevKeys.includes(r.kl)) && rowOk(r)) : [];
     const prev = prevKeys.length && prevOrders.length ? leaderStats(prevOrders) : null;
 
-    document.getElementById('kpiKm').innerHTML = valUnit(formatNum(cur.cont), 'cont');
+    // Tổng cont = cộng các tuần / kỳ trong phạm vi (cùng cách làm tròn với biểu đồ và bảng)
+    document.getElementById('kpiKm').innerHTML = valUnit(formatNum(contOfKeys(timeKeys)), 'cont');
     document.getElementById('kpiKmSub').innerText = `Bình quân ${formatNum(cur.contPerDay)} cont/ngày`;
     setKpiDelta(1, cur.cont, prev?.cont, true, prevLabel);
     document.getElementById('kpiTieuThu').innerHTML = valUnit(formatNum(cur.total), 'lệnh');
     document.getElementById('kpiTieuThuSub').innerText = `Bình quân ${fmt1(cur.perDay)} lệnh/ngày`;
     setKpiDelta(2, cur.total, prev?.total, true, prevLabel);
     // Số xe hoạt động: làm tròn xuống
-    document.getElementById('kpiDinhMuc').innerHTML = valUnit(formatNum(Math.floor(cur.vehPerDay)), 'xe/ngày');
+    document.getElementById('kpiDinhMuc').innerHTML = valUnit(fmtXe(cur.vehPerDay), 'xe/ngày');
     document.getElementById('kpiDinhMucSub').innerText = `${formatNum(cur.uniqVeh)} đầu xe có tham gia trong kỳ`;
     setKpiDelta(3, cur.vehPerDay, prev?.vehPerDay, true, prevLabel);
     document.getElementById('kpiRut').innerHTML = valUnit(fmt1(cur.contPerVehDay), 'cont');
@@ -2985,7 +2990,7 @@ function renderLeaderTab(isWeekMode, ySel, pStart, pEnd, wStart, wEnd, custSel, 
 
     // ---- Biểu đồ theo kỳ ----
     const xP = timeKeys.map(k => byPeriod[k].shortLabel);
-    const yT = timeKeys.map(k => byPeriod[k].total);
+    const yT = timeKeys.map(k => LEADER_RC.range(...leaderPeriodRange(k, isWeekMode)));
     const maxP = Math.max(...yT, 10);
     const periodTitle = document.getElementById('leaderPeriodChartTitle');
     const legendEl = document.getElementById('leaderPeriodLegend');
@@ -3843,6 +3848,9 @@ function renderExecReport() {
     const prevK = execPrevKey(mode, key), lyK = execLastYearKey(mode, key);
     const cur = slice(key, cutoff), prev = slice(prevK, cutoff), ly = slice(lyK, cutoff);
     const S = leaderStats(cur), P = prev.length ? leaderStats(prev) : null, Y = ly.length ? leaderStats(ly) : null;
+    const RC = buildContRounder(rows.map(x => x.r));
+    const atOff = (k, n) => new Date(execStart(mode, k).getTime() + n * EXEC_DAY);
+    const contShown = RC.range(start, atOff(key, cutoff));                    // tổng cont hiển thị = cộng các ngày
     const prevLbl = execShort(mode, prevK) + (open ? ' cùng mốc' : '');
     const lyLbl = 'cùng kỳ ' + execShort(mode, lyK);
     const unitP = mode === 'week' ? 'tuần' : 'kỳ';
@@ -3855,11 +3863,11 @@ function renderExecReport() {
     // KPI
     const kpi = (label, val, unit, sub, d1, d2) => `<div class="exec-kpi"><div class="k-l">${label}</div><div class="k-v">${val}<small>${unit}</small></div>${sub ? `<div class="k-s">${sub}</div>` : ''}${d1}${d2}</div>`;
     document.getElementById('execKpis').innerHTML = [
-        kpi('Sản lượng cont', formatNum(Math.round(S.cont)), 'cont', `${formatNum(Math.round(S.contPerDay))} cont/ngày`,
+        kpi('Sản lượng cont', formatNum(contShown), 'cont', `${formatNum(Math.round(S.contPerDay))} cont/ngày`,
             P ? execDelta(S.cont, P.cont, prevLbl) : execDelta(0, 0, execShort(mode, prevK)), Y ? execDelta(S.cont, Y.cont, lyLbl) : ''),
         kpi('Lệnh hoàn thành', formatNum(S.total), 'lệnh', `${formatNum(S.h)} có hàng · ${formatNum(S.r)} rỗng`,
             P ? execDelta(S.total, P.total, prevLbl) : '', Y ? execDelta(S.total, Y.total, lyLbl) : ''),
-        kpi('Xe hoạt động / ngày', fmt1(S.vehPerDay), 'xe', `${formatNum(S.uniqVeh)} đầu xe có chạy${fleetOf(team) ? ` / ${formatNum(fleetOf(team))} xe danh mục` : ''}`,
+        kpi('Xe hoạt động / ngày', fmtXe(S.vehPerDay), 'xe', `${formatNum(S.uniqVeh)} đầu xe có chạy${fleetOf(team) ? ` / ${formatNum(fleetOf(team))} xe danh mục` : ''}`,
             P ? execDelta(S.vehPerDay, P.vehPerDay, prevLbl) : '', Y ? execDelta(S.vehPerDay, Y.vehPerDay, lyLbl) : ''),
         kpi('Năng suất', fmt2(S.contPerVehDay), 'cont/xe/ngày', `trên ${formatNum(S.vehDays)} ngày-xe`,
             P ? execDelta(S.contPerVehDay, P.contPerVehDay, prevLbl) : '', Y ? execDelta(S.contPerVehDay, Y.contPerVehDay, lyLbl) : ''),
@@ -3875,10 +3883,11 @@ function renderExecReport() {
     const restPrev = Object.entries(cp).filter(([k]) => !top.some(t => t[0] === k)).reduce((a, x) => a + x[1], 0);
     const chg = (a, b) => { const p = execPct(a, b); return p == null ? '<span class="muted">mới</span>' : `<span class="${p >= 0 ? 'good' : 'bad'}">${p >= 0 ? '▲' : '▼'} ${Math.round(Math.abs(p))}%</span>`; };
     const share = v => S.cont ? `${Math.round(v / S.cont * 100)}%` : '–';
+    const custShown = apportion([...top.map(x => x[1]), restVal], contShown);   // các dòng cộng lại = tổng
     document.getElementById('execCustTable').innerHTML = `<thead><tr><th>Khách hàng</th><th class="num">Cont</th><th class="num">Tỷ trọng</th><th class="num">± ${escapeHtml(execShort(mode, prevK))}</th></tr></thead><tbody>`
-        + top.map(([k, v]) => `<tr><td>${escapeHtml(k)}</td><td class="num">${formatNum(Math.round(v))}</td><td class="num">${share(v)}</td><td class="num">${P ? chg(v, cp[k] || 0) : '–'}</td></tr>`).join('')
-        + (restVal ? `<tr class="sub"><td>${custSorted.length - 5} khách hàng khác</td><td class="num">${formatNum(Math.round(restVal))}</td><td class="num">${share(restVal)}</td><td class="num">${P ? chg(restVal, restPrev) : '–'}</td></tr>` : '')
-        + `<tr class="tot"><td>Tổng (${custSorted.length} khách hàng)</td><td class="num">${formatNum(Math.round(S.cont))}</td><td class="num">100%</td><td class="num">${P ? chg(S.cont, P.cont) : '–'}</td></tr></tbody>`;
+        + top.map(([k, v], i) => `<tr><td>${escapeHtml(k)}</td><td class="num">${formatNum(custShown[i])}</td><td class="num">${share(v)}</td><td class="num">${P ? chg(v, cp[k] || 0) : '–'}</td></tr>`).join('')
+        + (restVal ? `<tr class="sub"><td>${custSorted.length - 5} khách hàng khác</td><td class="num">${formatNum(custShown[top.length])}</td><td class="num">${share(restVal)}</td><td class="num">${P ? chg(restVal, restPrev) : '–'}</td></tr>` : '')
+        + `<tr class="tot"><td>Tổng (${custSorted.length} khách hàng)</td><td class="num">${formatNum(contShown)}</td><td class="num">100%</td><td class="num">${P ? chg(S.cont, P.cont) : '–'}</td></tr></tbody>`;
 
     // Loại lệnh
     const cmd = {};
@@ -3892,11 +3901,13 @@ function renderExecReport() {
 
     // Đội xe
     const teams = team === 'ALL' ? [...TEAM_LIST, 'Khác'] : [team];
-    const teamRow = (name, list, plist, nFleet) => { const t = leaderStats(list), p = plist.length ? leaderStats(plist) : null; return `<tr><td>${escapeHtml(name)}</td><td class="num">${formatNum(t.uniqVeh)}${nFleet ? `<span class="muted">/${nFleet}</span>` : ''}</td><td class="num">${fmt1(t.vehPerDay)}</td><td class="num">${formatNum(Math.round(t.cont))}</td><td class="num">${fmt2(t.contPerVehDay)}</td><td class="num">${p ? chg(t.contPerVehDay, p.contPerVehDay) : '–'}</td></tr>`; };
     const inTeam = (t, r) => t === 'Khác' ? !TEAM_LIST.includes(r.doi) : r.doi === t;
+    const teamData = teams.map(t => { const l = cur.filter(r => inTeam(t, r)); return l.length ? { t, l, st: leaderStats(l), pl: prev.filter(r => inTeam(t, r)) } : null; }).filter(Boolean);
+    const teamCont = apportion(teamData.map(x => x.st.cont), contShown);       // các đội cộng lại = tổng
+    const teamRow = (x, i) => { const t = x.st, p = x.pl.length ? leaderStats(x.pl) : null, nF = fleetOf(x.t); return `<tr><td>${escapeHtml(x.t === 'Khác' ? 'Khác (ngoài DM)' : teamLabel(x.t))}</td><td class="num">${formatNum(t.uniqVeh)}${nF ? `<span class="muted">/${nF}</span>` : ''}</td><td class="num">${fmtXe(t.vehPerDay)}</td><td class="num">${formatNum(teamCont[i])}</td><td class="num">${fmt2(t.contPerVehDay)}</td><td class="num">${p ? chg(t.contPerVehDay, p.contPerVehDay) : '–'}</td></tr>`; };
     document.getElementById('execTeamTable').innerHTML = `<thead><tr><th>Đội</th><th class="num" title="Số xe có lệnh / số xe trong danh mục Data box">Xe chạy/DM</th><th class="num">Xe/ngày</th><th class="num">Cont</th><th class="num">Cont/xe/ngày</th><th class="num" title="Năng suất so với ${escapeHtml(execShort(mode, prevK))}">± ${escapeHtml(execShort(mode, prevK))}</th></tr></thead><tbody>`
-        + teams.map(t => { const l = cur.filter(r => inTeam(t, r)); return l.length ? teamRow(t === 'Khác' ? 'Khác (ngoài DM)' : teamLabel(t), l, prev.filter(r => inTeam(t, r)), fleetOf(t)) : ''; }).join('')
-        + (teams.length > 1 ? `<tr class="tot"><td>Tổng</td><td class="num">${formatNum(S.uniqVeh)}<span class="muted">/${fleetOf('ALL')}</span></td><td class="num">${fmt1(S.vehPerDay)}</td><td class="num">${formatNum(Math.round(S.cont))}</td><td class="num">${fmt2(S.contPerVehDay)}</td><td class="num">${P ? chg(S.contPerVehDay, P.contPerVehDay) : '–'}</td></tr>` : '') + '</tbody>';
+        + teamData.map(teamRow).join('')
+        + (teams.length > 1 ? `<tr class="tot"><td>Tổng</td><td class="num">${formatNum(S.uniqVeh)}<span class="muted">/${fleetOf('ALL')}</span></td><td class="num">${fmtXe(S.vehPerDay)}</td><td class="num">${formatNum(contShown)}</td><td class="num">${fmt2(S.contPerVehDay)}</td><td class="num">${P ? chg(S.contPerVehDay, P.contPerVehDay) : '–'}</td></tr>` : '') + '</tbody>';
 
     // Cần chú ý: xe nghỉ ≥ 3 ngày (tính tới ngày cuối của kỳ đã có dữ liệu) và xe năng suất thấp
     const refDate = open ? latest : endDate;
@@ -3917,9 +3928,9 @@ function renderExecReport() {
     // Biểu đồ xu hướng: 8 tuần / 6 kỳ gần nhất tới kỳ đang chọn
     const idx = keys.indexOf(key), nT = mode === 'week' ? 8 : 6;
     const trendKeys = keys.slice(Math.max(0, idx - nT + 1), idx + 1);
-    const sumCont = list => list.reduce((a, r) => a + Number(r.sc || 0), 0);
-    const tv = trendKeys.map(k => sumCont(slice(k, null)));
-    const lyv = trendKeys.map(k => sumCont(slice(execLastYearKey(mode, k), null)));
+    const periodCont = k => RC.range(execStart(mode, k), atOff(k, execLen(mode, k) - 1));   // = cộng các ngày trong kỳ
+    const tv = trendKeys.map(periodCont);
+    const lyv = trendKeys.map(k => periodCont(execLastYearKey(mode, k)));
     const traces = [{
         x: trendKeys.map(k => execShort(mode, k)), y: tv, type: 'bar', name: execShort(mode, key).slice(0, 4) === 'Tuần' ? 'Sản lượng' : 'Sản lượng',
         marker: { color: trendKeys.map(k => k === key ? C.s1 : '#B9D7EA') },
@@ -3932,8 +3943,8 @@ function renderExecReport() {
     Plotly.react('chartExecTrend', traces, baseLayout({ margin: { t: 24, l: 44, r: 10, b: 30 }, showlegend: traces.length > 1, legend: { orientation: 'h', y: 1.15, x: 0, font: { size: 11 } }, yaxis: { range: [0, Math.max(...tv, ...lyv, 1) * 1.28] } }), PLOTLY_CFG);
 
     // Biểu đồ từng ngày: kỳ đang chọn (cột) và kỳ trước (đường) theo ngày thứ N
-    const daily = (k, list) => { const a = new Array(execLen(mode, k)).fill(0); list.forEach(r => { const d = parseDmy(r.ht); const o = d ? execOff(mode, k, d) : -1; if (o >= 0 && o < a.length) a[o] += Number(r.sc || 0); }); return a; };
-    const dc = daily(key, cur).slice(0, cutoff + 1), dp = daily(prevK, slice(prevK, null));
+    const daily = k => Array.from({ length: execLen(mode, k) }, (_, i) => RC.day(atOff(k, i)));
+    const dc = daily(key).slice(0, cutoff + 1), dp = daily(prevK);
     const wd = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
     const xl = Array.from({ length: len }, (_, i) => { const d = new Date(start.getTime() + i * EXEC_DAY); return mode === 'week' ? `${wd[d.getDay()]} ${dShort(d)}` : dShort(d); });
     // Hai cột sát nhau theo ngày thứ N: kỳ trước (xanh nhạt) | kỳ đang xem (xanh đậm)
@@ -3950,18 +3961,18 @@ function renderExecReport() {
     sec3.classList.toggle('month-mode', mode === 'ky');
     const cutDate = open ? latest : endDate;
     const curKy = mode === 'ky' ? key : kyOfDate(cutDate);
-    renderExecMonthCompare(rows, curKy, cutDate);
+    renderExecMonthCompare(RC, curKy, cutDate);
     document.getElementById('execMonthTotalTitle').innerText = mode === 'ky' ? `3. Sản lượng cont 6 tháng gần nhất` : `3. Sản lượng cont theo tháng (kỳ lương)`;
     if (mode === 'ky') document.getElementById('execDailyTitle').innerText = `Cont từng ngày trong kỳ · so với ${execShort(mode, prevK)} theo ngày thứ N`;
 
     // Tóm tắt tự viết
     const sum = [];
     const pc = P ? execPct(S.cont, P.cont) : null, yc = Y ? execPct(S.cont, Y.cont) : null;
-    sum.push(`${open ? `Tính đến ${dShort(latest)}` : `Cả ${unitP}`}, đội xe đạt <b>${formatNum(Math.round(S.cont))} cont</b> với <b>${formatNum(S.total)} lệnh</b>`
+    sum.push(`${open ? `Tính đến ${dShort(latest)}` : `Cả ${unitP}`}, đội xe đạt <b>${formatNum(contShown)} cont</b> với <b>${formatNum(S.total)} lệnh</b>`
         + (pc != null ? `, ${pc >= 0 ? 'tăng' : 'giảm'} <b>${fmt1(Math.abs(pc))}%</b> so với ${escapeHtml(prevLbl)}` : '')
         + (yc != null ? ` và ${yc >= 0 ? 'tăng' : 'giảm'} ${fmt1(Math.abs(yc))}% so với ${escapeHtml(lyLbl)}` : '') + '.');
-    sum.push(`Bình quân <b>${fmt1(S.vehPerDay)} xe chạy mỗi ngày</b>, năng suất <b>${fmt2(S.contPerVehDay)} cont/xe/ngày</b>`
-        + (P ? ` (${execShort(mode, prevK)}: ${fmt1(P.vehPerDay)} xe, ${fmt2(P.contPerVehDay)} cont/xe/ngày)` : '') + `; lệnh rỗng chiếm ${fmt1(S.emptyPct)}%.`);
+    sum.push(`Bình quân <b>${fmtXe(S.vehPerDay)} xe chạy mỗi ngày</b>, năng suất <b>${fmt2(S.contPerVehDay)} cont/xe/ngày</b>`
+        + (P ? ` (${execShort(mode, prevK)}: ${fmtXe(P.vehPerDay)} xe, ${fmt2(P.contPerVehDay)} cont/xe/ngày)` : '') + `; lệnh rỗng chiếm ${fmt1(S.emptyPct)}%.`);
     if (P) {
         const diffs = Object.keys({ ...cc, ...cp }).map(k => [k, (cc[k] || 0) - (cp[k] || 0)]).filter(x => Math.abs(x[1]) >= 1).sort((a, b) => b[1] - a[1]);
         const up = diffs[0] && diffs[0][1] > 0 ? diffs[0] : null, dn = diffs.length && diffs[diffs.length - 1][1] < 0 ? diffs[diffs.length - 1] : null;
@@ -4063,7 +4074,7 @@ function renderExecMaint(ctx) {
     const useRate = pairs.length ? pairs.reduce((s, p) => s + p[1], 0) / pairs.reduce((s, p) => s + p[0], 0) * 100 : null;
 
     const kpi = (label, val, unit, sub, d) => `<div class="exec-kpi"><div class="k-l">${label}</div><div class="k-v">${val}<small>${unit}</small></div>${sub ? `<div class="k-s">${sub}</div>` : ''}${d || ''}</div>`;
-    const f1 = v => v == null ? '–' : fmt1(v).replace(/,0$/, '');
+    const f1 = fmtXe;   // số xe / mooc: làm tròn xuống
     const kpis = [
         kpi('Xe đầu kéo sẵn sàng', f1(M.xeReady), `/ ${f1(M.xeTotal)} xe`, `${rXe == null ? '' : fmt1(rXe) + '% đội xe · '}bình quân mỗi ngày`, ptDelta(rXe, rXeP)),
         kpi('Sửa chữa xe đầu kéo', luot != null ? formatNum(luot) : formatNum(M.xeRepairDays), luot != null ? `lượt · ${formatNum(luotXe)} xe` : 'xe-ngày', `${formatNum(M.xeRepairDays)} xe-ngày nằm sửa (BQ ${f1(M.xeRepairAvg)} xe/ngày)`,
@@ -4085,15 +4096,14 @@ function renderExecMaint(ctx) {
 
     box.innerHTML = `<div class="exec-kpis">${kpis}</div>
         <div class="exec-grid2" style="margin-top:10px;">
-            <div><div class="exec-watch-h">Xe sẵn sàng (TLG) và xe có lệnh (Leader) mỗi ngày${useRate != null ? ` · khai thác <b>${fmt1(useRate)}%</b> số xe sẵn sàng` : ''}</div><div id="chartExecMaint" class="exec-chart exec-chart-sm"></div></div>
+            <div><div class="exec-watch-h">Số xe có lệnh mỗi ngày (Leader)</div><div id="chartExecMaint" class="exec-chart exec-chart-sm"></div></div>
             <div>${luotDetail ? `<div class="exec-watch-h">Chi tiết sửa chữa: ${escapeHtml(luotDetail)}</div>` : ''}${otherNotes.length ? `<div class="exec-foot-note">${otherNotes.map(escapeHtml).join('<br>')}</div>` : ''}${planHtml}</div>
         </div>`;
 
     const xl = M.days.map(d => { const t = new Date(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)); return `${['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][t.getDay()]} ${dd(d)}`; });
     Plotly.react('chartExecMaint', [
-        { x: xl, y: readyArr, type: 'bar', name: 'Xe sẵn sàng', marker: { color: '#B9D7EA' }, text: readyArr.map(v => v ?? ''), textposition: 'inside', insidetextanchor: 'end', textfont: { size: 10, color: C.ink }, hovertemplate: '%{x}: <b>%{y}</b> xe sẵn sàng<extra></extra>' },
-        { x: xl, y: runs, type: 'scatter', mode: 'lines+markers+text', name: 'Xe có lệnh', line: { color: C.s1, width: 2 }, marker: { size: 7, color: C.s1 }, text: runs.map(v => v ?? ''), textposition: 'top center', textfont: { size: 10, color: C.s1 }, hovertemplate: '%{x}: <b>%{y}</b> xe có lệnh<extra></extra>' }
-    ], baseLayout({ margin: { t: 22, l: 34, r: 8, b: 28 }, showlegend: true, legend: { orientation: 'h', y: 1.18, x: 0, font: { size: 11 } }, yaxis: { range: [0, Math.max(...readyArr.map(v => v || 0), M.xeTotal || 0, 1) * 1.15] }, xaxis: { nticks: 8 } }), PLOTLY_CFG);
+        { x: xl, y: runs, type: 'bar', name: 'Xe có lệnh', marker: { color: C.s1 }, text: runs.map(v => v ?? ''), textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false, hovertemplate: '%{x}: <b>%{y}</b> xe có lệnh<extra></extra>' }
+    ], baseLayout({ margin: { t: 18, l: 34, r: 8, b: 28 }, showlegend: false, yaxis: { range: [0, Math.max(...runs.map(v => v || 0), 1) * 1.2] }, xaxis: { nticks: 8 } }), PLOTLY_CFG);
 
     return `Phương tiện: bình quân <b>${f1(M.xeReady)}/${f1(M.xeTotal)} xe đầu kéo sẵn sàng</b>${rXe != null ? ` (${fmt1(rXe)}%)` : ''}`
         + (luot != null ? `, ${formatNum(luot)} lượt sửa chữa trên ${formatNum(luotXe)} xe` : `, ${formatNum(M.xeRepairDays)} xe-ngày nằm sửa`)
@@ -4106,7 +4116,9 @@ function kyOfDate(d) {
     if (d.getDate() >= 26) { m += 1; if (m === 13) { m = 1; y += 1; } }
     return `${String(m).padStart(2, '0')}/${y}`;
 }
-function renderExecMonthCompare(rows, curKy, cutDate) {
+function renderExecMonthCompare(RC, curKy, cutDate, opt) {
+    opt = opt || {};
+    const unit = opt.unit || 'cont', ids = opt.ids || { total: 'chartExecMonthTotal', same: 'chartExecSameDay', title: 'execSameDayTitle', note: 'execSameDayNote' };
     const kys = [...new Set(LEADER_ORDERS.map(r => r.kl))].filter(Boolean).sort((a, b) => kyKey(a).localeCompare(kyKey(b)));
     const idx = kys.indexOf(curKy);
     if (idx < 0) return;
@@ -4115,34 +4127,35 @@ function renderExecMonthCompare(rows, curKy, cutDate) {
     const kyLenCur = Math.round((kyEndDate(curKy) - kyStartDate(curKy)) / EXEC_DAY) + 1;
     const full = n + 1 >= kyLenCur;
     const tot = {}, same = {};
-    list.forEach(k => { tot[k] = 0; same[k] = 0; });
-    rows.forEach(({ r, d }) => {
-        if (!(r.kl in tot)) return;
-        const v = Number(r.sc || 0);
-        tot[r.kl] += v;
-        if (Math.round((d - kyStartDate(r.kl)) / EXEC_DAY) <= n) same[r.kl] += v;
+    list.forEach(k => {
+        const s0 = kyStartDate(k), e0 = kyEndDate(k);
+        tot[k] = RC.range(s0, e0);
+        const cut = new Date(s0.getTime() + n * EXEC_DAY);
+        same[k] = RC.range(s0, cut > e0 ? e0 : cut);
     });
     const lbl = k => `T${k.slice(0, 2)}/${k.slice(5)}`;
     const colors = list.map((k, i) => k === curKy ? C.s1 : (i === list.length - 2 ? C.s2 : '#CBD5E1'));
     const x = list.map(lbl);
     // Tổng từng kỳ (kỳ hiện tại chỉ tới ngày đã có dữ liệu)
     const tv = list.map(k => Math.round(tot[k]));
-    Plotly.react('chartExecMonthTotal', [{
+    Plotly.react(ids.total, [{
         x, y: tv, type: 'bar', marker: { color: colors },
         text: tv.map((v, i) => formatNum(v) + (list[i] === curKy && !full ? `<br><span style="font-size:10px">đến ${dShort(cutDate)}</span>` : '')),
         textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
-        hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont<extra></extra>'
+        hovertemplate: `%{x}: <b>%{y:,.0f}</b> ${unit}<extra></extra>`
     }], baseLayout({ margin: { t: 24, l: 44, r: 10, b: 30 }, showlegend: false, yaxis: { range: [0, Math.max(...tv, 1) * 1.28] } }), PLOTLY_CFG);
     // Tới cùng ngày thứ n+1: số kỳ cũ kèm % kỳ hiện tại cao/thấp hơn
     const sv = list.map(k => Math.round(same[k])), cur = sv[sv.length - 1];
-    Plotly.react('chartExecSameDay', [{
+    Plotly.react(ids.same, [{
         x, y: sv, type: 'bar', marker: { color: colors },
         text: sv.map((v, i) => { if (list[i] === curKy || !v) return formatNum(v); const p = (cur - v) / v * 100; return `${formatNum(v)}<br><span style="font-size:10px">${p >= 0 ? '▲' : '▼'}${Math.round(Math.abs(p))}%</span>`; }),
         textposition: 'outside', textfont: { size: 11, color: C.ink }, cliponaxis: false,
-        hovertemplate: '%{x}: <b>%{y:,.0f}</b> cont tới cùng mốc<extra></extra>'
+        hovertemplate: `%{x}: <b>%{y:,.0f}</b> ${unit} tới cùng mốc<extra></extra>`
     }], baseLayout({ margin: { t: 24, l: 44, r: 10, b: 30 }, showlegend: false, yaxis: { range: [0, Math.max(...sv, 1) * 1.32] } }), PLOTLY_CFG);
-    document.getElementById('execSameDayTitle').innerText = full ? `Cả kỳ (tới ngày 25) – so sánh ${list.length} tháng` : `Tới ngày thứ ${n + 1} của kỳ (cùng mốc ${dShort(cutDate)})`;
-    document.getElementById('execSameDayNote').innerText = `Tháng tính theo kỳ lương (26 tháng trước – 25). Dấu % trên cột các tháng trước: ${lbl(curKy)} cao (▲) / thấp (▼) hơn tháng đó bao nhiêu % khi so tới cùng ngày thứ ${n + 1}.`;
+    document.getElementById(ids.title).innerText = full ? `Cả kỳ (tới ngày 25) – so sánh ${list.length} tháng` : `Tới ngày thứ ${n + 1} của kỳ (cùng mốc ${dShort(cutDate)})`;
+    if (ids.note) document.getElementById(ids.note).innerText = `Tháng tính theo kỳ lương (26 tháng trước – 25). Dấu % trên cột các tháng trước: ${lbl(curKy)} cao (▲) / thấp (▼) hơn tháng đó bao nhiêu % khi so tới cùng ngày thứ ${n + 1}.`;
+    const cur0 = Math.round(same[curKy]), prevK0 = list[list.length - 2];
+    return { list, same, tot, n, full, curVal: cur0, prevK: prevK0, lbl };
 }
 
     </script>

@@ -405,6 +405,15 @@ body.exec-printing .exec-sec3:not(.month-mode) .exec-chart { height: 150px; }
 .exec-sec3 .exec-foot-note { order: 2; margin-top: -4px; }
 .exec-sec3 .exec-row-a { order: 3; }
 
+/* ===== Chế độ nhúng (?embed=1): dùng trong SharePoint / portal ===== */
+.embed-only { display: none; }
+html.embed-mode .embed-only { display: inline-flex; align-items: center; }
+html.embed-mode .sidebar, html.embed-mode .top-header, html.embed-mode .sidebar-handle-btn, html.embed-mode #btnExecPresent { display: none !important; }
+html.embed-mode .main { margin-left: 0 !important; padding: 10px 12px !important; max-width: none !important; }
+html.embed-mode body { background: #fff; }
+html.embed-mode .exec-sheet { max-width: none; box-shadow: none; }
+html.embed-mode .exec-toolbar { box-shadow: none; }
+
     </style>
 </head>
 <body>
@@ -750,6 +759,7 @@ body.exec-printing .exec-sec3:not(.month-mode) .exec-chart { height: 150px; }
                     <option value="ALL">Tất cả đội xe</option>
                 </select>
                 <div style="flex:1;"></div>
+                <a class="tool-btn embed-only" href="?view=exec" target="_blank" rel="noopener" style="text-decoration:none;">Mở trang đầy đủ ↗</a>
                 <button class="tool-btn" id="btnExecPresent" onclick="toggleExecPresent()">Trình chiếu</button>
                 <button class="tool-btn" onclick="printExecReport()">In / Xuất PDF</button>
             </div>
@@ -1507,6 +1517,28 @@ function hydrateDashboardPayload(payload) {
     populateCustomerDropdown();
     updateVehicleDropdownForCurrentTab();
     renderAll();
+    applyStartView();
+}
+
+// ================= MỞ THẲNG MỘT TRANG / NHÚNG VÀO PORTAL =================
+// ?view=exec            -> mở thẳng Báo cáo tổng quan
+// ?view=exec&embed=1    -> chế độ nhúng (SharePoint, portal): ẩn menu và thanh tiêu đề, chỉ còn báo cáo
+// &mode=ky | week       -> chọn sẵn chế độ Tháng / Tuần;  &team=ĐỘI%201 -> chọn sẵn đội
+const START_PARAMS = new URLSearchParams(location.search);
+const EMBED_MODE = START_PARAMS.get('embed') === '1';
+let START_VIEW_DONE = false;
+if (EMBED_MODE) document.documentElement.classList.add('embed-mode');
+function applyStartView() {
+    if (START_VIEW_DONE) return;
+    START_VIEW_DONE = true;
+    const view = START_PARAMS.get('view');
+    if (view !== 'exec' && !EMBED_MODE) return;
+    const nav = [...document.querySelectorAll('.sub-nav-item')].find(x => (x.getAttribute('onclick') || '').includes("'exec_report'"));
+    const team = START_PARAMS.get('team'), mode = START_PARAMS.get('mode');
+    if (team) { const el = document.getElementById('selExecTeam'); if ([...el.options].some(o => o.value === team)) el.value = team; }
+    if (mode === 'ky' || mode === 'week') EXEC_MODE = mode;
+    document.querySelectorAll('#execModeSeg button').forEach(b => b.classList.toggle('on', b.dataset.m === EXEC_MODE));
+    switchTab('exec_report', nav);
 }
 
 // ================= ĐĂNG NHẬP & PHIÊN (mã phiên do Apps Script cấp, không lưu mật khẩu/mã băm) =================
